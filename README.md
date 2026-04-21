@@ -2,8 +2,8 @@
 # 🏥 Projet 8 : Sécurité dynamique (Row-Level Security) pour un entrepôt santé
 
 ## 👥 Équipe
-- Maroua
-- Imane
+- Maroua Lhassouani
+- Imane Hamraoui
 
 ## 🎯 Objectif
 Ce projet consiste à concevoir un entrepôt de données pour un hôpital permettant de partager des indicateurs tout en protégeant les données sensibles des patients.
