@@ -2,3 +2,8 @@ node_modules/
 anomaly_report.json
 __pycache__/
 *.pyc
+ml/node_modules/
+ml/anomaly_report.json
+ml/package.json
+ml/package-lock.json
+ml/LICENSE
