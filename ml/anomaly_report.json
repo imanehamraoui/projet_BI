@@ -1,0 +1,88 @@
+{
+  "generated_at": "2026-05-07T23:40:25.446588",
+  "total_logs": 500,
+  "total_anomalies": 50,
+  "anomaly_rate": 10.0,
+  "top_anomalies": [
+    {
+      "username": "dr.alaoui",
+      "role": "medecin",
+      "action": "GET /api/patients",
+      "hour": 1,
+      "nb_requests": 200,
+      "risk_score": 100.0
+    },
+    {
+      "username": "directeur.chu",
+      "role": "directeur",
+      "action": "GET /api/dashboard/kpis",
+      "hour": 0,
+      "nb_requests": 180,
+      "risk_score": 96.9
+    },
+    {
+      "username": "marie.admin",
+      "role": "administratif",
+      "action": "GET /api/patients",
+      "hour": 5,
+      "nb_requests": 199,
+      "risk_score": 93.3
+    },
+    {
+      "username": "directeur.chu",
+      "role": "directeur",
+      "action": "GET /api/patients",
+      "hour": 0,
+      "nb_requests": 177,
+      "risk_score": 92.7
+    },
+    {
+      "username": "directeur.chu",
+      "role": "directeur",
+      "action": "GET /api/dashboard/kpis",
+      "hour": 3,
+      "nb_requests": 190,
+      "risk_score": 91.8
+    },
+    {
+      "username": "marie.admin",
+      "role": "administratif",
+      "action": "GET /api/patients/{id}",
+      "hour": 5,
+      "nb_requests": 183,
+      "risk_score": 87.1
+    },
+    {
+      "username": "sophie.inf",
+      "role": "infirmier",
+      "action": "GET /api/audit",
+      "hour": 0,
+      "nb_requests": 161,
+      "risk_score": 83.8
+    },
+    {
+      "username": "dr.alaoui",
+      "role": "medecin",
+      "action": "GET /api/dashboard/kpis",
+      "hour": 5,
+      "nb_requests": 162,
+      "risk_score": 83.5
+    },
+    {
+      "username": "dr.benali",
+      "role": "medecin",
+      "action": "GET /api/dashboard/kpis",
+      "hour": 2,
+      "nb_requests": 173,
+      "risk_score": 82.1
+    },
+    {
+      "username": "prof.rhanem",
+      "role": "chercheur",
+      "action": "GET /api/audit",
+      "hour": 1,
+      "nb_requests": 171,
+      "risk_score": 81.8
+    }
+  ]
+}
