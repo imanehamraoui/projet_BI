@@ -5,3 +5,4 @@ ml/package-lock.json
 ml/LICENSE
 frontend/node_modules/
 frontend/.next/
+node_modules/
