@@ -1,0 +1,7 @@
+ml/node_modules/
+ml/anomaly_report.json
+ml/package.json
+ml/package-lock.json
+ml/LICENSE
+frontend/node_modules/
+frontend/.next/
