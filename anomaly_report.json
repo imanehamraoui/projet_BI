@@ -1,0 +1,88 @@
+{
+  "generated_at": "2026-05-07T23:01:14.148120",
+  "total_logs": 500,
+  "total_anomalies": 50,
+  "anomaly_rate": 10.0,
+  "top_anomalies": [
+    {
+      "username": "directeur.chu",
+      "role": "directeur",
+      "action": "GET /api/audit",
+      "hour": 0,
+      "nb_requests": 135,
+      "risk_score": 100.0
+    },
+    {
+      "username": "directeur.chu",
+      "role": "directeur",
+      "action": "GET /api/audit",
+      "hour": 5,
+      "nb_requests": 160,
+      "risk_score": 96.6
+    },
+    {
+      "username": "sophie.inf",
+      "role": "infirmier",
+      "action": "GET /api/audit",
+      "hour": 5,
+      "nb_requests": 183,
+      "risk_score": 92.4
+    },
+    {
+      "username": "dr.benali",
+      "role": "medecin",
+      "action": "GET /api/patients",
+      "hour": 0,
+      "nb_requests": 150,
+      "risk_score": 88.1
+    },
+    {
+      "username": "dr.alaoui",
+      "role": "medecin",
+      "action": "GET /api/dashboard/kpis",
+      "hour": 2,
+      "nb_requests": 184,
+      "risk_score": 86.7
+    },
+    {
+      "username": "sophie.inf",
+      "role": "infirmier",
+      "action": "GET /api/audit",
+      "hour": 1,
+      "nb_requests": 164,
+      "risk_score": 85.0
+    },
+    {
+      "username": "sophie.inf",
+      "role": "infirmier",
+      "action": "GET /api/audit",
+      "hour": 4,
+      "nb_requests": 177,
+      "risk_score": 84.7
+    },
+    {
+      "username": "prof.rhanem",
+      "role": "chercheur",
+      "action": "GET /api/patients/{id}",
+      "hour": 0,
+      "nb_requests": 150,
+      "risk_score": 84.3
+    },
+    {
+      "username": "dr.alaoui",
+      "role": "medecin",
+      "action": "GET /api/dashboard/kpis",
+      "hour": 0,
+      "nb_requests": 141,
+      "risk_score": 83.7
+    },
+    {
+      "username": "sophie.inf",
+      "role": "infirmier",
+      "action": "GET /api/patients/{id}",
+      "hour": 0,
+      "nb_requests": 79,
+      "risk_score": 83.1
+    }
+  ]
+}
