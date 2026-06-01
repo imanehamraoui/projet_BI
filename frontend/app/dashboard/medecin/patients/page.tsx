@@ -1,129 +1,151 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useKeycloak } from '@react-keycloak/web';
+import Sidebar from '@/components/Sidebar';
+import api from '@/lib/api';
 
-export default function PatientsPage() {
+interface Patient {
+  id?: number;
+  nom: string;
+  prenom: string;
+  age?: number;
+  service: string;
+  diagnostic?: string;
+  medicaments?: string;
+  date_consultation?: string;
+}
+
+const patientsSimules: Patient[] = [
+  { id: 1, nom: 'El Idrissi', prenom: 'Youssef', age: 45, service: 'Cardiologie', diagnostic: 'Hypertension', medicaments: 'Amlodipine 5mg', date_consultation: '2024-05-08' },
+  { id: 2, nom: 'Benali', prenom: 'Fatima', age: 32, service: 'Neurologie', diagnostic: 'Migraine', medicaments: 'Sumatriptan', date_consultation: '2024-05-08' },
+  { id: 3, nom: 'Alaoui', prenom: 'Mohamed', age: 58, service: 'Cardiologie', diagnostic: 'Arythmie', medicaments: 'Bisoprolol', date_consultation: '2024-05-07' },
+  { id: 4, nom: 'Chraibi', prenom: 'Sara', age: 28, service: 'Pédiatrie', diagnostic: 'Rhinite', medicaments: 'Cetirizine', date_consultation: '2024-05-07' },
+  { id: 5, nom: 'Tazi', prenom: 'Ahmed', age: 67, service: 'Cardiologie', diagnostic: 'Insuffisance cardiaque', medicaments: 'Furosémide', date_consultation: '2024-05-06' },
+  { id: 6, nom: 'Berrada', prenom: 'Khadija', age: 41, service: 'Neurologie', diagnostic: 'Épilepsie', medicaments: 'Valproate', date_consultation: '2024-05-06' },
+];
+
+export default function MedecinPatients() {
+  const [patients, setPatients] = useState<Patient[]>(patientsSimules);
+  const [search, setSearch] = useState('');
+  const [selectedService, setSelectedService] = useState('Tous');
   const router = useRouter();
-  const { keycloak } = useKeycloak();
+
+  useEffect(() => {
+    api.get('/api/patients')
+      .then((res) => { if (res.data?.length > 0) setPatients(res.data); })
+      .catch(() => {});
+  }, []);
+
+  const services = ['Tous', 'Cardiologie', 'Neurologie', 'Pédiatrie', 'Orthopédie'];
+
+  const filtered = patients.filter((p) => {
+    const matchSearch = `${p.nom} ${p.prenom}`.toLowerCase().includes(search.toLowerCase());
+    const matchService = selectedService === 'Tous' || p.service === selectedService;
+    return matchSearch && matchService;
+  });
 
   return (
-    <div style={{
-      background: '#E8F0FE',
-      minHeight: '100vh',
-      display: 'flex',
-      fontFamily: "'Segoe UI', sans-serif"
-    }}>
-      {/* ── SIDEBAR ── */}
-      <div style={{
-        width: '90px',
-        background: 'white',
-        borderRadius: '0 24px 24px 0',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        padding: '28px 0',
-        gap: '28px',
-        boxShadow: '4px 0 20px rgba(21,101,192,0.08)',
-        position: 'fixed',
-        top: 0, bottom: 0, left: 0,
-        zIndex: 100
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{
-            width: '48px', height: '48px',
-            background: 'linear-gradient(135deg, #1565C0, #1976D2)',
-            borderRadius: '14px',
-            display: 'flex', alignItems: 'center',
-            justifyContent: 'center', margin: '0 auto 6px'
-          }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z" fill="white"/>
-            </svg>
-          </div>
-          <p style={{ fontSize: '10px', color: '#1565C0', fontWeight: '700', margin: 0 }}>Médecin</p>
-        </div>
+    <div style={{ background: '#E8F0FE', minHeight: '100vh', display: 'flex', fontFamily: "'Segoe UI', sans-serif" }}>
+      <Sidebar role="medecin" activeItem="Patients" />
 
-        {[
-          { label: 'Dashboard', svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" fill="#1565C0"/><rect x="14" y="3" width="7" height="7" rx="1" fill="#1565C0" opacity="0.4"/><rect x="3" y="14" width="7" height="7" rx="1" fill="#1565C0" opacity="0.4"/><rect x="14" y="14" width="7" height="7" rx="1" fill="#1565C0" opacity="0.4"/></svg>, onClick: () => router.push('/dashboard/medecin') },
-          { label: 'Patients', active: true, svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" fill="#1565C0"/></svg>, onClick: () => router.push('/dashboard/medecin/patients') },
-          { label: 'Messages', svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" fill="#9CA3AF"/></svg>, onClick: () => router.push('/dashboard/medecin/messages') },
-          { label: 'Agenda', svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z" fill="#9CA3AF"/></svg>, onClick: () => router.push('/dashboard/medecin/agenda') },
-          { label: 'Stats', svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z" fill="#9CA3AF"/></svg>, onClick: () => router.push('/dashboard/medecin/stats') },
-        ].map((item) => (
-          <div key={item.label} style={{
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px',
-            cursor: 'pointer'
-          }} onClick={item.onClick}>
-            <div style={{
-              width: '44px', height: '44px', borderRadius: '12px',
-              background: item.active ? '#E3F2FD' : 'transparent',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              borderLeft: item.active ? '3px solid #1565C0' : '3px solid transparent',
-              transition: 'all 0.2s ease'
-            }}>
-              {item.svg}
-            </div>
-            <span style={{ fontSize: '9px', color: item.active ? '#1565C0' : '#9CA3AF', fontWeight: item.active ? '700' : '400' }}>
-              {item.label}
-            </span>
-          </div>
-        ))}
-
-        <div style={{ marginTop: 'auto' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
-            onClick={() => keycloak?.logout()}>
-            <div style={{
-              width: '44px', height: '44px', borderRadius: '12px',
-              background: '#FEF2F2',
-              display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" fill="#EF4444"/>
-              </svg>
-            </div>
-            <span style={{ fontSize: '9px', color: '#EF4444', fontWeight: '600' }}>Logout</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ── MAIN CONTENT ── */}
       <div style={{ marginLeft: '90px', flex: 1, padding: '24px' }}>
-        <div style={{
-          background: 'white',
-          borderRadius: '16px',
-          padding: '24px',
-          boxShadow: '0 2px 8px rgba(21,101,192,0.08)'
-        }}>
-          <h1 style={{ color: '#1565C0', marginBottom: '16px' }}>📋 Liste des Patients</h1>
-          <p style={{ color: '#666' }}>Page Patients - Bientôt disponible avec la liste complète de vos patients</p>
-          
-          <div style={{
-            marginTop: '32px',
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-            gap: '16px'
-          }}>
-            {[
-              { name: 'Ahmed Hassan', age: 45, status: 'En traitement' },
-              { name: 'Fatima Mohamed', age: 32, status: 'Suivi' },
-              { name: 'Youssef Benali', age: 58, status: 'En traitement' },
-              { name: 'Sara Alaoui', age: 28, status: 'Consultation' },
-            ].map((patient, idx) => (
-              <div key={idx} style={{
-                border: '1px solid #E0E7FF',
-                borderRadius: '8px',
-                padding: '16px',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                ':hover': { boxShadow: '0 4px 12px rgba(21,101,192,0.12)' }
-              }}>
-                <p style={{ fontWeight: '600', color: '#1565C0', margin: '0 0 8px 0' }}>👤 {patient.name}</p>
-                <p style={{ fontSize: '14px', color: '#666', margin: '0 0 4px 0' }}>Âge: {patient.age} ans</p>
-                <p style={{ fontSize: '12px', color: '#999', margin: 0 }}>Statut: {patient.status}</p>
-              </div>
-            ))}
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+          <div>
+            <h1 style={{ margin: 0, fontSize: '22px', fontWeight: '700', color: '#1a1a2e' }}>
+              Mes Patients
+            </h1>
+            <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#6B7280' }}>
+              {filtered.length} patients trouvés
+            </p>
           </div>
+          <div style={{
+            background: 'white', borderRadius: '12px', padding: '10px 20px',
+            display: 'flex', alignItems: 'center', gap: '8px',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.06)', border: '1px solid #E5E7EB'
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Rechercher un patient..."
+              style={{ border: 'none', outline: 'none', fontSize: '13px', color: '#374151', width: '200px' }}
+            />
+          </div>
+        </div>
+
+        {/* Filtres */}
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+          {services.map((s) => (
+            <button key={s} onClick={() => setSelectedService(s)} style={{
+              padding: '8px 16px', borderRadius: '20px', border: 'none', cursor: 'pointer',
+              background: selectedService === s ? '#1565C0' : 'white',
+              color: selectedService === s ? 'white' : '#6B7280',
+              fontSize: '12px', fontWeight: '600',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+            }}>
+              {s}
+            </button>
+          ))}
+        </div>
+
+        {/* Table */}
+        <div style={{ background: 'white', borderRadius: '20px', padding: '24px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: '#EEF2FF' }}>
+                {['Patient', 'Âge', 'Service', 'Diagnostic', 'Médicaments', 'Date', 'Action'].map((h) => (
+                  <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', color: '#1565C0', fontWeight: '700' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((p, i) => (
+                <tr key={i} style={{ borderTop: '1px solid #F3F4F6' }}>
+                  <td style={{ padding: '14px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{
+                        width: '36px', height: '36px', borderRadius: '10px',
+                        background: 'linear-gradient(135deg, #1565C0, #1976D2)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: 'white', fontWeight: '700', fontSize: '14px'
+                      }}>
+                        {p.nom?.charAt(0)}
+                      </div>
+                      <div>
+                        <p style={{ margin: 0, fontWeight: '600', color: '#1a1a2e', fontSize: '13px' }}>{p.nom} {p.prenom}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td style={{ padding: '14px 16px', fontSize: '13px', color: '#374151' }}>{p.age ?? '—'} ans</td>
+                  <td style={{ padding: '14px 16px' }}>
+                    <span style={{
+                      background: '#EEF2FF', color: '#1565C0',
+                      padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600'
+                    }}>{p.service}</span>
+                  </td>
+                  <td style={{ padding: '14px 16px', fontSize: '13px', color: '#374151' }}>{p.diagnostic ?? '—'}</td>
+                  <td style={{ padding: '14px 16px', fontSize: '12px', color: '#6B7280', fontFamily: 'monospace' }}>{p.medicaments ?? '—'}</td>
+                  <td style={{ padding: '14px 16px', fontSize: '12px', color: '#6B7280' }}>{p.date_consultation ?? '—'}</td>
+                  <td style={{ padding: '14px 16px' }}>
+                    <button
+                      onClick={() => router.push(`/dashboard/medecin/patients/${p.id || i}`)}
+                      style={{
+                        background: 'linear-gradient(135deg, #1565C0, #1976D2)',
+                        color: 'white', border: 'none', borderRadius: '8px',
+                        padding: '6px 14px', fontSize: '11px', cursor: 'pointer', fontWeight: '600'
+                      }}
+                    >
+                      Voir →
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
