@@ -1,12 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import api from '@/lib/api';
+import { ensureKeycloakSession } from '@/lib/keycloak-init';
+import RefreshButton from '@/components/RefreshButton';
 
 interface Patient {
   id?: number;
+  patient_id?: number;
   nom: string;
   prenom: string;
   age?: number;
@@ -16,85 +19,102 @@ interface Patient {
   date_consultation?: string;
 }
 
-const patientsSimules: Patient[] = [
-  { id: 1, nom: 'El Idrissi', prenom: 'Youssef', age: 45, service: 'Cardiologie', diagnostic: 'Hypertension', medicaments: 'Amlodipine 5mg', date_consultation: '2024-05-08' },
-  { id: 2, nom: 'Benali', prenom: 'Fatima', age: 32, service: 'Neurologie', diagnostic: 'Migraine', medicaments: 'Sumatriptan', date_consultation: '2024-05-08' },
-  { id: 3, nom: 'Alaoui', prenom: 'Mohamed', age: 58, service: 'Cardiologie', diagnostic: 'Arythmie', medicaments: 'Bisoprolol', date_consultation: '2024-05-07' },
-  { id: 4, nom: 'Chraibi', prenom: 'Sara', age: 28, service: 'Pédiatrie', diagnostic: 'Rhinite', medicaments: 'Cetirizine', date_consultation: '2024-05-07' },
-  { id: 5, nom: 'Tazi', prenom: 'Ahmed', age: 67, service: 'Cardiologie', diagnostic: 'Insuffisance cardiaque', medicaments: 'Furosémide', date_consultation: '2024-05-06' },
-  { id: 6, nom: 'Berrada', prenom: 'Khadija', age: 41, service: 'Neurologie', diagnostic: 'Épilepsie', medicaments: 'Valproate', date_consultation: '2024-05-06' },
-];
+function calcAge(dateNaissance: string | null | undefined): number | undefined {
+  if (!dateNaissance) return undefined;
+  return Math.floor(
+    (Date.now() - new Date(dateNaissance).getTime()) / (365.25 * 24 * 3600 * 1000)
+  );
+}
 
 export default function MedecinPatients() {
-  const [patients, setPatients] = useState<Patient[]>(patientsSimules);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [services, setServices] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [selectedService, setSelectedService] = useState('Tous');
   const router = useRouter();
 
   useEffect(() => {
-    api.get('/api/patients')
-      .then((res) => {
-        if (res.data?.data?.length > 0) {
-          const formattedData = res.data.data.map((p: any) => ({
-            ...p,
-            id: p.id || p.patient_id || Math.random(),
-            nom: p.nom || 'Inconnu',
-            prenom: p.prenom || '',
-            age: p.age || 40,
-            service: p.service || 'Cardiologie',
-            diagnostic: p.diagnostic_code || p.diagnostic || '—',
-            medicaments: '—',
-            date_consultation: p.date_admission || '2024-05-08'
-          }));
-          setPatients(formattedData);
-        }
-      })
-      .catch(() => {});
+    const q = new URLSearchParams(window.location.search).get('search');
+    if (q) setSearch(q);
   }, []);
 
-  const services = ['Tous', 'Cardiologie', 'Neurologie', 'Pédiatrie', 'Orthopédie'];
+  const fetchData = useCallback(async () => {
+    const authenticated = await ensureKeycloakSession();
+    if (!authenticated) return;
 
-  const filtered = patients.filter((p) => {
-    const matchSearch = `${p.nom} ${p.prenom}`.toLowerCase().includes(search.toLowerCase());
-    const matchService = selectedService === 'Tous' || p.service === selectedService;
-    return matchSearch && matchService;
-  });
+    try {
+      const params = new URLSearchParams();
+      if (search.trim()) params.set('search', search.trim());
+      if (selectedService !== 'Tous') params.set('service', selectedService);
+
+      const res = await api.get(`/api/medecin/patients?${params.toString()}`);
+      const rows = res.data?.data ?? [];
+
+      setPatients(
+        rows.map((p: Record<string, unknown>) => ({
+          id: (p.patient_id ?? p.id) as number,
+          patient_id: p.patient_id as number,
+          nom: String(p.nom || 'Inconnu'),
+          prenom: String(p.prenom || ''),
+          age: calcAge(p.date_naissance as string),
+          service: String(p.service || 'Non assigné'),
+          diagnostic: String(p.diagnostic || '—'),
+          medicaments: String(p.medicaments || '—'),
+          date_consultation: p.date_consultation ? String(p.date_consultation).slice(0, 10) : '—',
+        }))
+      );
+
+      if (res.data?.services?.length) {
+        setServices(res.data.services);
+      }
+    } catch {}
+  }, [search, selectedService]);
+
+  useEffect(() => {
+    ensureKeycloakSession().then((authenticated) => {
+      if (authenticated) fetchData();
+    });
+  }, [fetchData]);
+
+  const filterButtons = ['Tous', ...services];
 
   return (
     <div style={{ background: '#E8F0FE', minHeight: '100vh', display: 'flex', fontFamily: "'Segoe UI', sans-serif" }}>
       <Sidebar role="medecin" activeItem="Patients" />
 
       <div style={{ marginLeft: '90px', flex: 1, padding: '24px' }}>
-        {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <div>
             <h1 style={{ margin: 0, fontSize: '22px', fontWeight: '700', color: '#1a1a2e' }}>
               Mes Patients
             </h1>
             <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#6B7280' }}>
-              {filtered.length} patients trouvés
+              {patients.length} patients trouvés
+              {selectedService !== 'Tous' ? ` — ${selectedService}` : ''}
             </p>
           </div>
-          <div style={{
-            background: 'white', borderRadius: '12px', padding: '10px 20px',
-            display: 'flex', alignItems: 'center', gap: '8px',
-            boxShadow: '0 2px 10px rgba(0,0,0,0.06)', border: '1px solid #E5E7EB'
-          }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Rechercher un patient..."
-              style={{ border: 'none', outline: 'none', fontSize: '13px', color: '#374151', width: '200px' }}
-            />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <RefreshButton onRefresh={fetchData} color="#1565C0" />
+            <div style={{
+              background: 'white', borderRadius: '12px', padding: '10px 20px',
+              display: 'flex', alignItems: 'center', gap: '8px',
+              boxShadow: '0 2px 10px rgba(0,0,0,0.06)', border: '1px solid #E5E7EB'
+            }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Rechercher un patient..."
+                style={{ border: 'none', outline: 'none', fontSize: '13px', color: '#374151', width: '200px' }}
+              />
+            </div>
           </div>
         </div>
 
-        {/* Filtres */}
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
-          {services.map((s) => (
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
+          {filterButtons.map((s) => (
             <button key={s} onClick={() => setSelectedService(s)} style={{
               padding: '8px 16px', borderRadius: '20px', border: 'none', cursor: 'pointer',
               background: selectedService === s ? '#1565C0' : 'white',
@@ -107,7 +127,6 @@ export default function MedecinPatients() {
           ))}
         </div>
 
-        {/* Table */}
         <div style={{ background: 'white', borderRadius: '20px', padding: '24px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
@@ -118,8 +137,8 @@ export default function MedecinPatients() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((p, i) => (
-                <tr key={i} style={{ borderTop: '1px solid #F3F4F6' }}>
+              {patients.map((p) => (
+                <tr key={p.id} style={{ borderTop: '1px solid #F3F4F6' }}>
                   <td style={{ padding: '14px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <div style={{
@@ -147,7 +166,7 @@ export default function MedecinPatients() {
                   <td style={{ padding: '14px 16px', fontSize: '12px', color: '#6B7280' }}>{p.date_consultation ?? '—'}</td>
                   <td style={{ padding: '14px 16px' }}>
                     <button
-                      onClick={() => router.push(`/dashboard/medecin/patients/${p.id || i}`)}
+                      onClick={() => router.push(`/dashboard/medecin/patients/${p.id}`)}
                       style={{
                         background: 'linear-gradient(135deg, #1565C0, #1976D2)',
                         color: 'white', border: 'none', borderRadius: '8px',
@@ -159,6 +178,13 @@ export default function MedecinPatients() {
                   </td>
                 </tr>
               ))}
+              {patients.length === 0 && (
+                <tr>
+                  <td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: '#6B7280', fontSize: '14px' }}>
+                    Aucun patient trouvé{selectedService !== 'Tous' ? ` pour le service « ${selectedService} »` : ''}.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

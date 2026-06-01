@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import api from '@/lib/api';
 import Sidebar from '@/components/Sidebar';
 import RefreshButton from '@/components/RefreshButton';
 import { useAutoRefresh } from '@/components/useAutoRefresh';
+import { ensureKeycloakSession } from '@/lib/keycloak-init';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const auditData = [
@@ -41,22 +42,30 @@ export default function DirecteurAudit() {
   const [searchResource, setSearchResource] = useState('');
 
   const fetchData = useCallback(async () => {
+    const authenticated = await ensureKeycloakSession();
+    if (!authenticated) return;
     try {
       const res = await api.get('/api/audit');
       if (res.data?.data?.length > 0) {
-        const formattedLogs = res.data.data.map((l: any, i: number) => ({
+        const formattedLogs = res.data.data.map((l: Record<string, unknown>, i: number) => ({
           id: i + 1,
-          user: l.username || l.user,
+          user: l.utilisateur || l.username || l.user || 'inconnu',
           action: l.action,
-          resource: l.resource_accessed || l.resource,
-          timestamp: new Date(l.timestamp).toLocaleString(),
-          ip: l.ip_address || 'N/A',
-          statut: l.is_granted ? 'Succès' : 'Refusé'
+          resource: l.endpoint || l.resource_accessed || l.resource || '—',
+          timestamp: l.timestamp ? new Date(String(l.timestamp)).toLocaleString() : '—',
+          ip: l.ip || l.ip_address || 'N/A',
+          statut: 'Succès',
         }));
         setLogs(formattedLogs);
       }
     } catch {}
   }, []);
+
+  useEffect(() => {
+    ensureKeycloakSession().then((auth) => {
+      if (auth) fetchData();
+    });
+  }, [fetchData]);
 
   useAutoRefresh(fetchData, 30);
 
@@ -202,7 +211,7 @@ export default function DirecteurAudit() {
                       <td style={{ padding: '16px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <span style={{ 
-                            background: getActionStyle(log.action).bg, color: getActionStyle(log.action).color, border: \`1px solid \${getActionStyle(log.action).border}\`,
+                            background: getActionStyle(log.action).bg, color: getActionStyle(log.action).color, border: `1px solid ${getActionStyle(log.action).border}`,
                             padding: '2px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: '800'
                           }}>
                             {log.action}

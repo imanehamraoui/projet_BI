@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import Sidebar from '@/components/Sidebar';
 import RefreshButton from '@/components/RefreshButton';
 import { useAutoRefresh } from '@/components/useAutoRefresh';
 import api from '@/lib/api';
+import { ensureKeycloakSession } from '@/lib/keycloak-init';
+import { getAdministratifApiError, isAdministratifAccount } from '@/lib/administratif-utils';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, LineChart, Line
@@ -19,29 +21,8 @@ interface Rapport {
   taille: string;
 }
 
-const rapportsDefaut: Rapport[] = [
-  { id: 1, titre: 'Rapport mensuel — Mai 2026', type: 'Financier', date: '08/05/2026', statut: 'Généré', taille: '2.4 MB' },
-  { id: 2, titre: 'Bilan consultations T1 2026', type: 'Médical', date: '01/04/2026', statut: 'Généré', taille: '1.8 MB' },
-  { id: 3, titre: 'Rapport personnel — Avril', type: 'RH', date: '30/04/2026', statut: 'Généré', taille: '980 KB' },
-  { id: 4, titre: 'Analyse revenus 2025', type: 'Financier', date: '15/01/2026', statut: 'Archivé', taille: '3.2 MB' },
-  { id: 5, titre: 'Statistiques patients 2025', type: 'Médical', date: '31/12/2025', statut: 'Archivé', taille: '4.1 MB' },
-  { id: 6, titre: 'Rapport audit interne', type: 'Audit', date: '20/03/2026', statut: 'En cours', taille: '—' },
-];
-
-const dataActivite = [
-  { mois: 'Jan', rapports: 8 },
-  { mois: 'Fév', rapports: 12 },
-  { mois: 'Mar', rapports: 9 },
-  { mois: 'Avr', rapports: 15 },
-  { mois: 'Mai', rapports: 6 },
-];
-
-const dataTypes = [
-  { type: 'Financier', count: 12 },
-  { type: 'Médical', count: 8 },
-  { type: 'RH', count: 5 },
-  { type: 'Audit', count: 3 },
-];
+interface Activite { mois: string; rapports: number }
+interface TypeCount { type: string; count: number }
 
 const typeColors: Record<string, { bg: string; color: string }> = {
   'Financier': { bg: '#DCFCE7', color: '#166534' },
@@ -57,52 +38,47 @@ const statutColors: Record<string, { bg: string; color: string }> = {
 };
 
 export default function AdminRapports() {
-  const [rapports, setRapports] = useState<Rapport[]>(rapportsDefaut);
+  const [rapports, setRapports] = useState<Rapport[]>([]);
+  const [activite, setActivite] = useState<Activite[]>([]);
+  const [parType, setParType] = useState<TypeCount[]>([]);
   const [filterType, setFilterType] = useState('Tous');
   const [filterStatut, setFilterStatut] = useState('Tous');
   const [notification, setNotification] = useState('');
-  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState('');
 
   const fetchData = useCallback(async () => {
+    const authenticated = await ensureKeycloakSession();
+    if (!authenticated) return;
+
     try {
-      const res = await api.get('/api/audit');
-      if (res.data?.length > 0) {
-        // Transformer les données audit en rapports
-      }
-    } catch {}
+      setError('');
+      const res = await api.get('/api/administratif/rapports?annee=2024');
+      const d = res.data;
+      if (d.rapports) setRapports(d.rapports);
+      if (d.activite) setActivite(d.activite);
+      if (d.par_type) setParType(d.par_type);
+    } catch (e) {
+      setError(getAdministratifApiError(e));
+    }
   }, []);
+
+  useEffect(() => {
+    ensureKeycloakSession().then((authenticated) => {
+      if (authenticated) fetchData();
+    });
+  }, [fetchData]);
 
   useAutoRefresh(fetchData, 30);
 
-  const handleDownload = (rapport: Rapport) => {
-    if (rapport.statut === 'En cours') {
-      setNotification('⏳ Rapport en cours de génération...');
-    } else {
-      setNotification(`✅ Téléchargement de "${rapport.titre}" lancé !`);
-    }
-    setTimeout(() => setNotification(''), 3000);
-  };
+  const types = useMemo(() => {
+    const unique = [...new Set(rapports.map((r) => r.type))];
+    return ['Tous', ...unique];
+  }, [rapports]);
 
-  const handleGenerate = () => {
-    setGenerating(true);
-    setTimeout(() => {
-      const newRapport: Rapport = {
-        id: rapports.length + 1,
-        titre: `Rapport automatique — ${new Date().toLocaleDateString('fr-FR')}`,
-        type: 'Financier',
-        date: new Date().toLocaleDateString('fr-FR'),
-        statut: 'Généré',
-        taille: '1.2 MB'
-      };
-      setRapports(prev => [newRapport, ...prev]);
-      setGenerating(false);
-      setNotification('✅ Nouveau rapport généré avec succès !');
-      setTimeout(() => setNotification(''), 3000);
-    }, 2000);
-  };
-
-  const types = ['Tous', 'Financier', 'Médical', 'RH', 'Audit'];
-  const statuts = ['Tous', 'Généré', 'Archivé', 'En cours'];
+  const statuts = useMemo(() => {
+    const unique = [...new Set(rapports.map((r) => r.statut))];
+    return ['Tous', ...unique];
+  }, [rapports]);
 
   const filtered = rapports.filter(r => {
     const matchType = filterType === 'Tous' || r.type === filterType;
@@ -110,11 +86,15 @@ export default function AdminRapports() {
     return matchType && matchStatut;
   });
 
+  const handleDownload = (rapport: Rapport) => {
+    setNotification(`✅ Rapport "${rapport.titre}" — ${rapport.taille}`);
+    setTimeout(() => setNotification(''), 3000);
+  };
+
   return (
     <div style={{ background: '#E8F5E9', minHeight: '100vh', display: 'flex', fontFamily: "'Segoe UI', sans-serif" }}>
       <Sidebar role="administratif" activeItem="Rapports" />
 
-      {/* Notification */}
       {notification && (
         <div style={{
           position: 'fixed', top: '20px', right: '20px', zIndex: 1000,
@@ -122,43 +102,41 @@ export default function AdminRapports() {
           borderRadius: '12px', padding: '12px 20px',
           color: '#1a1a2e', fontWeight: '600', fontSize: '13px',
           boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
-        }}>
-          {notification}
-        </div>
+        }}>{notification}</div>
       )}
 
       <div style={{ marginLeft: '90px', flex: 1, padding: '24px' }}>
-        {/* Header */}
+        {error && (
+          <div style={{
+            background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '12px',
+            padding: '12px 16px', marginBottom: '16px', color: '#B91C1C', fontSize: '13px'
+          }}>{error}</div>
+        )}
+        {!isAdministratifAccount() && !error && (
+          <div style={{
+            background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '12px',
+            padding: '12px 16px', marginBottom: '16px', color: '#92400E', fontSize: '13px'
+          }}>
+            Mode consultation — connectez-vous avec <strong>marie.admin</strong> pour le compte administratif.
+          </div>
+        )}
+
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <div>
             <h1 style={{ margin: 0, fontSize: '22px', fontWeight: '700', color: '#1a1a2e' }}>Rapports</h1>
             <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#6B7280' }}>
-              {rapports.length} rapports disponibles
+              {rapports.length} rapports disponibles — Données 2024
             </p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <RefreshButton onRefresh={fetchData} color="#166534" />
-            <button
-              onClick={handleGenerate}
-              disabled={generating}
-              style={{
-                background: generating ? '#9CA3AF' : 'linear-gradient(135deg, #166534, #16a34a)',
-                color: 'white', border: 'none', borderRadius: '12px',
-                padding: '10px 20px', fontSize: '13px', cursor: generating ? 'not-allowed' : 'pointer',
-                fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px'
-              }}>
-              {generating ? '⏳ Génération...' : '+ Générer rapport'}
-            </button>
-          </div>
+          <RefreshButton onRefresh={fetchData} color="#166534" />
         </div>
 
-        {/* KPI Cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px', marginBottom: '20px' }}>
           {[
             { label: 'Total Rapports', value: rapports.length, icon: '📄', color: '#166534' },
             { label: 'Générés', value: rapports.filter(r => r.statut === 'Généré').length, icon: '✅', color: '#16a34a' },
-            { label: 'Archivés', value: rapports.filter(r => r.statut === 'Archivé').length, icon: '🗃️', color: '#6B7280' },
-            { label: 'En cours', value: rapports.filter(r => r.statut === 'En cours').length, icon: '⏳', color: '#ca8a04' },
+            { label: 'Financiers', value: rapports.filter(r => r.type === 'Financier').length, icon: '💰', color: '#1565C0' },
+            { label: 'Médicaux', value: rapports.filter(r => r.type === 'Médical').length, icon: '🏥', color: '#7C3AED' },
           ].map((kpi) => (
             <div key={kpi.label} style={{
               background: 'white', borderRadius: '14px', padding: '16px',
@@ -178,40 +156,44 @@ export default function AdminRapports() {
           ))}
         </div>
 
-        {/* Charts */}
         <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '16px', marginBottom: '20px' }}>
           <div style={{ background: 'white', borderRadius: '16px', padding: '20px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
             <p style={{ margin: '0 0 16px', color: '#1a1a2e', fontSize: '15px', fontWeight: '700' }}>
-              Rapports générés par mois
+              Activité mensuelle
             </p>
-            <ResponsiveContainer width="100%" height={180}>
-              <LineChart data={dataActivite}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
-                <XAxis dataKey="mois" tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
-                <Line type="monotone" dataKey="rapports" stroke="#166534" strokeWidth={2.5} dot={{ fill: '#166534', r: 4 }} name="Rapports" />
-              </LineChart>
-            </ResponsiveContainer>
+            {activite.length > 0 ? (
+              <ResponsiveContainer width="100%" height={180}>
+                <LineChart data={activite}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
+                  <XAxis dataKey="mois" tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
+                  <Line type="monotone" dataKey="rapports" stroke="#166534" strokeWidth={2.5} dot={{ fill: '#166534', r: 4 }} name="Rapports" />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <p style={{ color: '#9CA3AF', textAlign: 'center', padding: '40px 0' }}>Aucune donnée</p>
+            )}
           </div>
 
           <div style={{ background: 'white', borderRadius: '16px', padding: '20px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
-            <p style={{ margin: '0 0 16px', color: '#1a1a2e', fontSize: '15px', fontWeight: '700' }}>
-              Par type
-            </p>
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={dataTypes} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
-                <XAxis type="number" tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
-                <YAxis dataKey="type" type="category" tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
-                <Bar dataKey="count" fill="#16a34a" radius={[0,4,4,0]} name="Rapports" />
-              </BarChart>
-            </ResponsiveContainer>
+            <p style={{ margin: '0 0 16px', color: '#1a1a2e', fontSize: '15px', fontWeight: '700' }}>Par type</p>
+            {parType.length > 0 ? (
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={parType} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
+                  <XAxis type="number" tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
+                  <YAxis dataKey="type" type="category" tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} width={70} />
+                  <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
+                  <Bar dataKey="count" fill="#16a34a" radius={[0,4,4,0]} name="Rapports" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p style={{ color: '#9CA3AF', textAlign: 'center', padding: '40px 0' }}>Aucune donnée</p>
+            )}
           </div>
         </div>
 
-        {/* Filtres */}
         <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', flexWrap: 'wrap' }}>
           {types.map(t => (
             <button key={t} onClick={() => setFilterType(t)} style={{
@@ -232,7 +214,6 @@ export default function AdminRapports() {
           ))}
         </div>
 
-        {/* Liste Rapports */}
         <div style={{ background: 'white', borderRadius: '16px', padding: '20px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
@@ -243,7 +224,9 @@ export default function AdminRapports() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r) => (
+              {filtered.length === 0 ? (
+                <tr><td colSpan={6} style={{ padding: '24px', textAlign: 'center', color: '#9CA3AF' }}>Aucun rapport</td></tr>
+              ) : filtered.map((r) => (
                 <tr key={r.id} style={{ borderTop: '1px solid #F3F4F6' }}>
                   <td style={{ padding: '12px 14px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -266,17 +249,11 @@ export default function AdminRapports() {
                     }}>{r.statut}</span>
                   </td>
                   <td style={{ padding: '12px 14px' }}>
-                    <button
-                      onClick={() => handleDownload(r)}
-                      style={{
-                        background: r.statut === 'En cours' ? '#F3F4F6' : 'linear-gradient(135deg, #166534, #16a34a)',
-                        color: r.statut === 'En cours' ? '#6B7280' : 'white',
-                        border: 'none', borderRadius: '8px',
-                        padding: '6px 14px', fontSize: '11px',
-                        cursor: 'pointer', fontWeight: '600'
-                      }}>
-                      {r.statut === 'En cours' ? '⏳' : '⬇️ Télécharger'}
-                    </button>
+                    <button onClick={() => handleDownload(r)} style={{
+                      background: 'linear-gradient(135deg, #166534, #16a34a)',
+                      color: 'white', border: 'none', borderRadius: '8px',
+                      padding: '6px 14px', fontSize: '11px', cursor: 'pointer', fontWeight: '600'
+                    }}>⬇️ Télécharger</button>
                   </td>
                 </tr>
               ))}

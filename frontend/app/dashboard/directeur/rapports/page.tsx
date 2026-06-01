@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
 import RefreshButton from '@/components/RefreshButton';
 import { useAutoRefresh } from '@/components/useAutoRefresh';
+import { ensureKeycloakSession } from '@/lib/keycloak-init';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const rapportsSimules = [
@@ -36,6 +37,12 @@ export default function DirecteurRapports() {
   const [newReportFormat, setNewReportFormat] = useState('PDF');
 
   const fetchData = useCallback(async () => {}, []);
+  useEffect(() => {
+    ensureKeycloakSession().then((auth) => {
+      if (auth) fetchData();
+    });
+  }, [fetchData]);
+
   useAutoRefresh(fetchData, 60);
 
   const showToast = (msg: string) => {
@@ -46,7 +53,7 @@ export default function DirecteurRapports() {
   const handleGenerate = () => {
     const newReport = {
       id: Date.now(),
-      titre: \`Rapport \${newReportType} (\${newReportPeriod})\`,
+      titre: `Rapport ${newReportType} (${newReportPeriod})`,
       type: newReportType.split(' ')[0],
       date: new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }),
       format: newReportFormat,

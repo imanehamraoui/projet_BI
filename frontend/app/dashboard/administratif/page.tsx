@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import keycloak from '@/lib/keycloak';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import api from '@/lib/api';
+import { ensureKeycloakSession } from '@/lib/keycloak-init';
+import { getAdministratifApiError, isAdministratifAccount } from '@/lib/administratif-utils';
 import Sidebar from '@/components/Sidebar';
 import RefreshButton from '@/components/RefreshButton';
 import { useAutoRefresh } from '@/components/useAutoRefresh';
@@ -12,58 +13,74 @@ import {
 } from 'recharts';
 
 interface KPI {
-  total_consultations: number;
   total_patients: number;
-  revenus_total?: number;
+  total_consultations: number;
+  revenus_total: number;
+  depenses_total?: number;
+  benefice?: number;
 }
 
-const dataFinances = [
-  { mois: 'Jan', revenus: 85000, depenses: 62000 },
-  { mois: 'Fév', revenus: 92000, depenses: 58000 },
-  { mois: 'Mar', revenus: 78000, depenses: 71000 },
-  { mois: 'Avr', revenus: 105000, depenses: 65000 },
-  { mois: 'Mai', revenus: 98000, depenses: 59000 },
-  { mois: 'Jun', revenus: 112000, depenses: 68000 },
-  { mois: 'Jul', revenus: 88000, depenses: 55000 },
-  { mois: 'Aoû', revenus: 95000, depenses: 61000 },
-];
+interface Tendance { mois: string; revenus: number; depenses: number }
+interface RecentOp { label: string; montant: string; statut: string; color: string }
 
-const weekDays = [
-  { day: 'Lun', date: '07' },
-  { day: 'Mar', date: '08', active: true },
-  { day: 'Mer', date: '09' },
-  { day: 'Jeu', date: '10' },
-  { day: 'Ven', date: '11' },
-  { day: 'Sam', date: '12' },
-  { day: 'Dim', date: '13' },
-];
-
-const recentOps = [
-  { label: 'Paiement fournisseur', montant: '-12,500 MAD', statut: 'Payé', color: '#16a34a' },
-  { label: 'Recette consultations', montant: '+48,200 MAD', statut: 'Reçu', color: '#1565C0' },
-  { label: 'Salaires personnel', montant: '-95,000 MAD', statut: 'Payé', color: '#16a34a' },
-  { label: 'Équipements médicaux', montant: '-28,750 MAD', statut: 'En attente', color: '#ca8a04' },
-];
+const DAY_LABELS = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 
 export default function DashboardAdministratif() {
   const [kpis, setKpis] = useState<KPI | null>(null);
-  const [userName, setUserName] = useState('Admin');
+  const [profile, setProfile] = useState<{ nom?: string; prenom?: string } | null>(null);
+  const [finances, setFinances] = useState<Tendance[]>([]);
+  const [recentOperations, setRecentOperations] = useState<RecentOp[]>([]);
+  const [stats, setStats] = useState({ services: 0, personnel: 0 });
+  const [error, setError] = useState('');
 
-  const fetchData = useCallback(async () => {
-    try {
-      const res = await api.get('/api/dashboard/kpis?annee=2024');
-      if (res.data?.kpis) {
-        const d = res.data.kpis;
-        setKpis({
-          total_consultations: d.activite?.total || 0,
-          total_patients: d.activite?.patients_uniques || 0,
-          revenus_total: d.financier?.chiffre_affaires || 0
-        });
-      }
-    } catch {}
+  const weekDays = useMemo(() => {
+    const today = new Date();
+    const start = new Date(today);
+    start.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      return {
+        day: DAY_LABELS[d.getDay()],
+        date: String(d.getDate()).padStart(2, '0'),
+        active: d.toDateString() === today.toDateString(),
+      };
+    });
   }, []);
 
+  const userName = profile?.prenom
+    ? `${profile.prenom} ${profile.nom || ''}`.trim()
+    : profile?.nom || 'Admin';
+
+  const fetchData = useCallback(async () => {
+    const authenticated = await ensureKeycloakSession();
+    if (!authenticated) return;
+
+    try {
+      setError('');
+      const res = await api.get('/api/administratif/dashboard?annee=2024');
+      const d = res.data;
+      if (d.kpis) setKpis(d.kpis);
+      if (d.profile) setProfile(d.profile);
+      if (d.tendances) setFinances(d.tendances);
+      if (d.recent_ops) setRecentOperations(d.recent_ops);
+      if (d.stats) setStats(d.stats);
+    } catch (e) {
+      setError(getAdministratifApiError(e));
+    }
+  }, []);
+
+  useEffect(() => {
+    ensureKeycloakSession().then((authenticated) => {
+      if (authenticated) fetchData();
+    });
+  }, [fetchData]);
+
   useAutoRefresh(fetchData, 30);
+
+  const revenusDisplay = kpis?.revenus_total
+    ? `${kpis.revenus_total.toLocaleString('fr-FR')} MAD`
+    : '—';
 
   return (
     <div style={{
@@ -74,10 +91,23 @@ export default function DashboardAdministratif() {
     }}>
       <Sidebar role="administratif" activeItem="Dashboard" />
 
-      {/* MAIN */}
       <div style={{ marginLeft: '90px', flex: 1, padding: '24px', display: 'flex', gap: '20px' }}>
         <div style={{ flex: 1 }}>
-          {/* Header */}
+          {error && (
+            <div style={{
+              background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '12px',
+              padding: '12px 16px', marginBottom: '16px', color: '#B91C1C', fontSize: '13px'
+            }}>{error}</div>
+          )}
+          {!isAdministratifAccount() && !error && (
+            <div style={{
+              background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '12px',
+              padding: '12px 16px', marginBottom: '16px', color: '#92400E', fontSize: '13px'
+            }}>
+              Mode consultation — connectez-vous avec <strong>marie.admin</strong> pour le compte administratif.
+            </div>
+          )}
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <div>
               <h1 style={{ margin: 0, fontSize: '22px', fontWeight: '700', color: '#1a1a2e' }}>
@@ -95,7 +125,6 @@ export default function DashboardAdministratif() {
             </div>
           </div>
 
-          {/* Welcome Banner */}
           <div style={{
             background: 'linear-gradient(135deg, #166534 0%, #16a34a 60%, #4ade80 100%)',
             borderRadius: '20px', padding: '24px 28px',
@@ -111,15 +140,6 @@ export default function DashboardAdministratif() {
                 Gestion financière et administrative<br/>
                 Hôpital Ibn Sina — Rabat, Maroc
               </p>
-              <div style={{
-                display: 'inline-block',
-                background: 'rgba(255,255,255,0.2)',
-                borderRadius: '20px', padding: '4px 12px'
-              }}>
-                <span style={{ color: 'white', fontSize: '12px', fontWeight: '600' }}>
-                  ✅ Accès administratif complet
-                </span>
-              </div>
             </div>
             <div style={{
               width: '100px', height: '100px',
@@ -127,17 +147,14 @@ export default function DashboardAdministratif() {
               borderRadius: '50%',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: '50px'
-            }}>
-              👔
-            </div>
+            }}>👔</div>
           </div>
 
-          {/* KPI Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '20px' }}>
             {[
-              { label: 'Total Patients', value: kpis?.total_patients ?? '5,000', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>, change: '+8%' },
-              { label: 'Consultations', value: kpis?.total_consultations ?? '50,000', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14H7v-2h5v2zm5-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>, change: '+12%' },
-              { label: 'Revenus Total', value: kpis?.revenus_total ? `${kpis.revenus_total} MAD` : '430,230 MAD', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>, change: '+15%' },
+              { label: 'Total Patients', value: kpis ? kpis.total_patients.toLocaleString('fr-FR') : '—' },
+              { label: 'Consultations 2024', value: kpis ? kpis.total_consultations.toLocaleString('fr-FR') : '—' },
+              { label: 'Revenus Total', value: revenusDisplay },
             ].map((kpi) => (
               <div key={kpi.label} style={{
                 background: 'white', borderRadius: '16px', padding: '18px',
@@ -147,59 +164,58 @@ export default function DashboardAdministratif() {
                 <div style={{
                   width: '44px', height: '44px', borderRadius: '12px',
                   background: 'linear-gradient(135deg, #166534, #16a34a)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
-                }}>
-                  {kpi.icon}
-                </div>
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  color: 'white', fontSize: '18px'
+                }}>📊</div>
                 <div style={{ flex: 1 }}>
                   <p style={{ margin: 0, color: '#6B7280', fontSize: '11px' }}>{kpi.label}</p>
                   <p style={{ margin: 0, color: '#1a1a2e', fontSize: '20px', fontWeight: '800' }}>{kpi.value}</p>
                 </div>
-                <span style={{
-                  background: '#dcfce7', color: '#16a34a',
-                  borderRadius: '20px', padding: '4px 10px',
-                  fontSize: '11px', fontWeight: '600'
-                }}>↑ {kpi.change}</span>
               </div>
             ))}
           </div>
 
-          {/* Charts */}
           <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '16px' }}>
             <div style={{ background: 'white', borderRadius: '16px', padding: '20px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                 <p style={{ margin: 0, color: '#1a1a2e', fontSize: '15px', fontWeight: '700' }}>Revenus vs Dépenses</p>
                 <span style={{ background: '#DCFCE7', color: '#166534', fontSize: '11px', padding: '4px 10px', borderRadius: '20px', fontWeight: '600' }}>2024</span>
               </div>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={dataFinances}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
-                  <XAxis dataKey="mois" tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
-                  <Bar dataKey="revenus" fill="#16a34a" radius={[4,4,0,0]} name="Revenus" />
-                  <Bar dataKey="depenses" fill="#86efac" radius={[4,4,0,0]} name="Dépenses" />
-                </BarChart>
-              </ResponsiveContainer>
+              {finances.length > 0 ? (
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={finances}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
+                    <XAxis dataKey="mois" tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '12px' }} formatter={(v) => `${Number(v).toLocaleString('fr-FR')} MAD`} />
+                    <Bar dataKey="revenus" fill="#16a34a" radius={[4,4,0,0]} name="Revenus" />
+                    <Bar dataKey="depenses" fill="#86efac" radius={[4,4,0,0]} name="Dépenses" />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <p style={{ color: '#9CA3AF', fontSize: '13px', textAlign: 'center', padding: '40px 0' }}>Aucune donnée disponible</p>
+              )}
             </div>
 
             <div style={{ background: 'white', borderRadius: '16px', padding: '20px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
               <p style={{ margin: '0 0 4px', color: '#6B7280', fontSize: '12px' }}>Évolution Revenus</p>
-              <p style={{ margin: '0 0 16px', color: '#1a1a2e', fontSize: '26px', fontWeight: '800' }}>430,230 MAD</p>
-              <ResponsiveContainer width="100%" height={150}>
-                <LineChart data={dataFinances}>
-                  <Line type="monotone" dataKey="revenus" stroke="#16a34a" strokeWidth={2.5} dot={false} />
-                  <XAxis dataKey="mois" tick={{ fontSize: 9, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
-                </LineChart>
-              </ResponsiveContainer>
+              <p style={{ margin: '0 0 16px', color: '#1a1a2e', fontSize: '26px', fontWeight: '800' }}>{revenusDisplay}</p>
+              {finances.length > 0 ? (
+                <ResponsiveContainer width="100%" height={150}>
+                  <LineChart data={finances}>
+                    <Line type="monotone" dataKey="revenus" stroke="#16a34a" strokeWidth={2.5} dot={false} />
+                    <XAxis dataKey="mois" tick={{ fontSize: 9, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '12px' }} formatter={(v) => `${Number(v).toLocaleString('fr-FR')} MAD`} />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <p style={{ color: '#9CA3AF', fontSize: '13px', textAlign: 'center', padding: '30px 0' }}>—</p>
+              )}
             </div>
           </div>
         </div>
 
-        {/* RIGHT COLUMN */}
         <div style={{ width: '280px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {/* Profile */}
           <div style={{ background: 'white', borderRadius: '20px', padding: '20px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
               <div style={{
@@ -211,14 +227,13 @@ export default function DashboardAdministratif() {
                 <p style={{ margin: 0, fontWeight: '700', color: '#1a1a2e', fontSize: '14px' }}>{userName}</p>
                 <p style={{ margin: 0, color: '#6B7280', fontSize: '12px' }}>Administratif</p>
               </div>
-              <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#4ADE80' }} />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', borderTop: '1px solid #F3F4F6', paddingTop: '16px' }}>
               {[
-                { label: 'Services', value: '22' },
-                { label: 'Personnel', value: '285' },
-                { label: 'Fournisseurs', value: '48' },
-                { label: 'Grade', value: 'Senior' },
+                { label: 'Services', value: String(stats.services || '—') },
+                { label: 'Personnel', value: String(stats.personnel || '—') },
+                { label: 'Consultations', value: kpis ? String(kpis.total_consultations) : '—' },
+                { label: 'Bénéfice', value: kpis?.benefice != null ? `${Math.round(kpis.benefice).toLocaleString('fr-FR')}` : '—' },
               ].map((s) => (
                 <div key={s.label} style={{ textAlign: 'center' }}>
                   <p style={{ margin: 0, color: '#6B7280', fontSize: '9px' }}>{s.label}</p>
@@ -228,12 +243,11 @@ export default function DashboardAdministratif() {
             </div>
           </div>
 
-          {/* Calendar */}
           <div style={{ background: 'white', borderRadius: '20px', padding: '20px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
             <p style={{ margin: '0 0 12px', fontWeight: '700', color: '#1a1a2e', fontSize: '14px' }}>Calendrier</p>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               {weekDays.map((d) => (
-                <div key={d.day} style={{ textAlign: 'center' }}>
+                <div key={d.day + d.date} style={{ textAlign: 'center' }}>
                   <p style={{ margin: '0 0 4px', fontSize: '9px', color: '#9CA3AF' }}>{d.day}</p>
                   <div style={{
                     width: '28px', height: '28px', borderRadius: '8px',
@@ -247,11 +261,10 @@ export default function DashboardAdministratif() {
             </div>
           </div>
 
-          {/* Opérations récentes */}
           <div style={{ background: 'white', borderRadius: '20px', padding: '20px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', flex: 1 }}>
             <p style={{ margin: '0 0 14px', fontWeight: '700', color: '#1a1a2e', fontSize: '14px' }}>Opérations récentes</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {recentOps.map((op, i) => (
+              {recentOperations.length > 0 ? recentOperations.map((op, i) => (
                 <div key={i} style={{
                   background: '#F9FAFB', borderRadius: '12px', padding: '12px',
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center'
@@ -260,15 +273,15 @@ export default function DashboardAdministratif() {
                     <p style={{ margin: 0, fontSize: '12px', fontWeight: '600', color: '#1a1a2e' }}>{op.label}</p>
                     <span style={{
                       fontSize: '10px', fontWeight: '600', padding: '2px 8px', borderRadius: '20px',
-                      background: op.statut === 'Payé' ? '#dcfce7' : op.statut === 'Reçu' ? '#dbeafe' : '#fef9c3',
-                      color: op.statut === 'Payé' ? '#16a34a' : op.statut === 'Reçu' ? '#1565C0' : '#ca8a04'
+                      background: op.statut === 'Reçu' ? '#dbeafe' : '#fef9c3',
+                      color: op.statut === 'Reçu' ? '#1565C0' : '#ca8a04'
                     }}>{op.statut}</span>
                   </div>
-                  <p style={{ margin: 0, fontSize: '12px', fontWeight: '700', color: op.montant.startsWith('+') ? '#16a34a' : '#ef4444' }}>
-                    {op.montant}
-                  </p>
+                  <p style={{ margin: 0, fontSize: '12px', fontWeight: '700', color: '#16a34a' }}>{op.montant}</p>
                 </div>
-              ))}
+              )) : (
+                <p style={{ color: '#9CA3AF', fontSize: '12px', textAlign: 'center' }}>Aucune opération</p>
+              )}
             </div>
           </div>
         </div>

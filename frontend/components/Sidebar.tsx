@@ -161,7 +161,11 @@ export default function Sidebar({ role, activeItem }: SidebarProps) {
       <div style={{ marginTop: 'auto' }}>
         <div
           onClick={() => {
-            try { keycloak.logout(); } catch { router.push('/login'); }
+            if (keycloak.authenticated) {
+              keycloak.logout({ redirectUri: window.location.origin + '/login' });
+            } else {
+              router.push('/login');
+            }
           }}
           style={{
             display: 'flex', flexDirection: 'column',
