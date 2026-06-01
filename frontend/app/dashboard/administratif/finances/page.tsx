@@ -44,7 +44,14 @@ export default function AdminFinances() {
   const fetchData = useCallback(async () => {
     try {
       const res = await api.get('/api/dashboard/kpis?annee=2024');
-      setFinance(res.data);
+      if (res.data?.kpis) {
+        const d = res.data.kpis;
+        setFinance({
+          revenus_total: d.financier?.chiffre_affaires || 0,
+          depenses_total: d.financier?.total_rembourse || 0,
+          benefice: (d.financier?.chiffre_affaires || 0) - (d.financier?.total_rembourse || 0)
+        });
+      }
     } catch {}
   }, []);
 

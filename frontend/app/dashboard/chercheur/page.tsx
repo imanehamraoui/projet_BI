@@ -1,8 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useCallback } from 'react';
 import keycloak from '@/lib/keycloak';
 import api from '@/lib/api';
+import Sidebar from '@/components/Sidebar';
+import RefreshButton from '@/components/RefreshButton';
+import { useAutoRefresh } from '@/components/useAutoRefresh';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell
@@ -53,16 +56,16 @@ export default function DashboardChercheur() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [userName, setUserName] = useState('Rhanem');
 
-  useEffect(() => {
-    keycloak.init({ onLoad: 'check-sso' }).then((authenticated) => {
-      if (authenticated) {
-        setUserName(keycloak.tokenParsed?.preferred_username || 'Rhanem');
-        api.get('/api/patients')
-          .then((res) => setPatients(res.data.slice(0, 8)))
-          .catch(() => {});
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await api.get('/api/patients');
+      if (res.data?.data) {
+        setPatients(res.data.data.slice(0, 8));
       }
-    }).catch(() => {});
+    } catch {}
   }, []);
+
+  useAutoRefresh(fetchData, 30);
 
   return (
     <div style={{
@@ -71,63 +74,7 @@ export default function DashboardChercheur() {
       display: 'flex',
       fontFamily: "'Segoe UI', sans-serif"
     }}>
-      {/* SIDEBAR */}
-      <div style={{
-        width: '90px', background: 'white',
-        borderRadius: '0 24px 24px 0',
-        display: 'flex', flexDirection: 'column',
-        alignItems: 'center', padding: '28px 0', gap: '28px',
-        boxShadow: '4px 0 20px rgba(124,58,237,0.08)',
-        position: 'fixed', top: 0, bottom: 0, left: 0, zIndex: 100
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{
-            width: '48px', height: '48px',
-            background: 'linear-gradient(135deg, #5B21B6, #7C3AED)',
-            borderRadius: '14px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 6px'
-          }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
-              <path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z"/>
-            </svg>
-          </div>
-          <p style={{ fontSize: '10px', color: '#5B21B6', fontWeight: '700', margin: 0 }}>Chercheur</p>
-        </div>
-
-        {[
-          { label: 'Dashboard', active: true, svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" fill="#5B21B6"/><rect x="14" y="3" width="7" height="7" rx="1" fill="#5B21B6" opacity="0.4"/><rect x="3" y="14" width="7" height="7" rx="1" fill="#5B21B6" opacity="0.4"/><rect x="14" y="14" width="7" height="7" rx="1" fill="#5B21B6" opacity="0.4"/></svg> },
-          { label: 'Données', svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="#9CA3AF"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14H7v-2h5v2zm5-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg> },
-          { label: 'Analyses', svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="#9CA3AF"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg> },
-          { label: 'Rapports', svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="#9CA3AF"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg> },
-        ].map((item) => (
-          <div key={item.label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
-            <div style={{
-              width: '44px', height: '44px', borderRadius: '12px',
-              background: item.active ? '#EDE9FE' : 'transparent',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              borderLeft: item.active ? '3px solid #5B21B6' : '3px solid transparent'
-            }}>
-              {item.svg}
-            </div>
-            <span style={{ fontSize: '9px', color: item.active ? '#5B21B6' : '#9CA3AF', fontWeight: item.active ? '700' : '400' }}>
-              {item.label}
-            </span>
-          </div>
-        ))}
-
-        <div style={{ marginTop: 'auto' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
-            onClick={() => keycloak.logout()}>
-            <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: '#FEF2F2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" fill="#EF4444"/>
-              </svg>
-            </div>
-            <span style={{ fontSize: '9px', color: '#EF4444', fontWeight: '600' }}>Logout</span>
-          </div>
-        </div>
-      </div>
+      <Sidebar role="chercheur" activeItem="Dashboard" />
 
       {/* MAIN */}
       <div style={{ marginLeft: '90px', flex: 1, padding: '24px', display: 'flex', gap: '20px' }}>
@@ -142,11 +89,14 @@ export default function DashboardChercheur() {
                 Données anonymisées — RGPD conforme
               </p>
             </div>
-            <div style={{
-              background: '#EDE9FE', borderRadius: '12px', padding: '8px 16px',
-              border: '1px solid #DDD6FE', fontSize: '13px', color: '#5B21B6', fontWeight: '600'
-            }}>
-              🔬 Mode Recherche
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <RefreshButton onRefresh={fetchData} color="#5B21B6" />
+              <div style={{
+                background: '#EDE9FE', borderRadius: '12px', padding: '8px 16px',
+                border: '1px solid #DDD6FE', fontSize: '13px', color: '#5B21B6', fontWeight: '600'
+              }}>
+                🔬 Mode Recherche
+              </div>
             </div>
           </div>
 

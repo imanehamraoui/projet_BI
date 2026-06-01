@@ -73,8 +73,16 @@ export default function DashboardMedecin() {
         api.get('/api/dashboard/kpis?annee=2024'),
         api.get('/api/dashboard/tendances'),
       ]);
-      setKpis(kpiRes.data);
-      if (tendRes.data?.length > 0) setTendances(tendRes.data);
+      if (kpiRes.data?.kpis) {
+        const d = kpiRes.data.kpis;
+        setKpis({
+          total_consultations: d.activite?.total || 0,
+          patients_uniques: d.activite?.patients_uniques || 0,
+          duree_sejour_moy: d.activite?.duree_moy || 0,
+          urgences_count: d.activite?.urgences || 0
+        });
+      }
+      if (tendRes.data?.data?.length > 0) setTendances(tendRes.data.data);
     } catch {}
   }, []);
 

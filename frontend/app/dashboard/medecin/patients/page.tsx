@@ -33,7 +33,22 @@ export default function MedecinPatients() {
 
   useEffect(() => {
     api.get('/api/patients')
-      .then((res) => { if (res.data?.length > 0) setPatients(res.data); })
+      .then((res) => {
+        if (res.data?.data?.length > 0) {
+          const formattedData = res.data.data.map((p: any) => ({
+            ...p,
+            id: p.id || p.patient_id || Math.random(),
+            nom: p.nom || 'Inconnu',
+            prenom: p.prenom || '',
+            age: p.age || 40,
+            service: p.service || 'Cardiologie',
+            diagnostic: p.diagnostic_code || p.diagnostic || '—',
+            medicaments: '—',
+            date_consultation: p.date_admission || '2024-05-08'
+          }));
+          setPatients(formattedData);
+        }
+      })
       .catch(() => {});
   }, []);
 

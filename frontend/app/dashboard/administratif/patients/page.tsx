@@ -44,7 +44,20 @@ export default function AdminPatients() {
   const fetchData = useCallback(async () => {
     try {
       const res = await api.get('/api/patients');
-      if (res.data?.length > 0) setPatients(res.data);
+      if (res.data?.data?.length > 0) {
+        const formattedData = res.data.data.map((p: any) => ({
+          ...p,
+          id: p.id || p.patient_id || Math.random(),
+          nom: p.nom || 'Inconnu',
+          prenom: p.prenom || '',
+          age: p.age || 40,
+          service: p.service || 'Général',
+          date_admission: p.date_admission || '2026-05-01',
+          statut: p.statut || 'Ambulatoire',
+          montant: p.cout_total || p.montant || 0
+        }));
+        setPatients(formattedData);
+      }
     } catch {}
   }, []);
 

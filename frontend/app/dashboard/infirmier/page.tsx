@@ -1,8 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useCallback } from 'react';
 import keycloak from '@/lib/keycloak';
 import api from '@/lib/api';
+import Sidebar from '@/components/Sidebar';
+import RefreshButton from '@/components/RefreshButton';
+import { useAutoRefresh } from '@/components/useAutoRefresh';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer
@@ -45,16 +48,14 @@ export default function DashboardInfirmier() {
   const [patients, setPatients] = useState<Patient[]>(patientsSimules);
   const [userName, setUserName] = useState('Sophie');
 
-  useEffect(() => {
-    keycloak.init({ onLoad: 'check-sso' }).then((authenticated) => {
-      if (authenticated) {
-        setUserName(keycloak.tokenParsed?.preferred_username || 'Sophie');
-        api.get('/api/patients')
-          .then((res) => { if (res.data?.length > 0) setPatients(res.data.slice(0, 5)); })
-          .catch(() => {});
-      }
-    }).catch(() => {});
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await api.get('/api/patients');
+      if (res.data?.data?.length > 0) setPatients(res.data.data.slice(0, 5));
+    } catch {}
   }, []);
+
+  useAutoRefresh(fetchData, 30);
 
   return (
     <div style={{
@@ -63,63 +64,7 @@ export default function DashboardInfirmier() {
       display: 'flex',
       fontFamily: "'Segoe UI', sans-serif"
     }}>
-      {/* SIDEBAR */}
-      <div style={{
-        width: '90px', background: 'white',
-        borderRadius: '0 24px 24px 0',
-        display: 'flex', flexDirection: 'column',
-        alignItems: 'center', padding: '28px 0', gap: '28px',
-        boxShadow: '4px 0 20px rgba(6,182,212,0.08)',
-        position: 'fixed', top: 0, bottom: 0, left: 0, zIndex: 100
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{
-            width: '48px', height: '48px',
-            background: 'linear-gradient(135deg, #0369A1, #0EA5E9)',
-            borderRadius: '14px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 6px'
-          }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
-              <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"/>
-            </svg>
-          </div>
-          <p style={{ fontSize: '10px', color: '#0369A1', fontWeight: '700', margin: 0 }}>Infirmier</p>
-        </div>
-
-        {[
-          { label: 'Dashboard', active: true, svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" fill="#0369A1"/><rect x="14" y="3" width="7" height="7" rx="1" fill="#0369A1" opacity="0.4"/><rect x="3" y="14" width="7" height="7" rx="1" fill="#0369A1" opacity="0.4"/><rect x="14" y="14" width="7" height="7" rx="1" fill="#0369A1" opacity="0.4"/></svg> },
-          { label: 'Patients', svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="#9CA3AF"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg> },
-          { label: 'Soins', svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="#9CA3AF"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"/></svg> },
-          { label: 'Planning', svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="#9CA3AF"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg> },
-        ].map((item) => (
-          <div key={item.label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
-            <div style={{
-              width: '44px', height: '44px', borderRadius: '12px',
-              background: item.active ? '#E0F2FE' : 'transparent',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              borderLeft: item.active ? '3px solid #0369A1' : '3px solid transparent'
-            }}>
-              {item.svg}
-            </div>
-            <span style={{ fontSize: '9px', color: item.active ? '#0369A1' : '#9CA3AF', fontWeight: item.active ? '700' : '400' }}>
-              {item.label}
-            </span>
-          </div>
-        ))}
-
-        <div style={{ marginTop: 'auto' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
-            onClick={() => keycloak.logout()}>
-            <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: '#FEF2F2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" fill="#EF4444"/>
-              </svg>
-            </div>
-            <span style={{ fontSize: '9px', color: '#EF4444', fontWeight: '600' }}>Logout</span>
-          </div>
-        </div>
-      </div>
+      <Sidebar role="infirmier" activeItem="Dashboard" />
 
       {/* MAIN */}
       <div style={{ marginLeft: '90px', flex: 1, padding: '24px', display: 'flex', gap: '20px' }}>
@@ -134,11 +79,14 @@ export default function DashboardInfirmier() {
                 {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
               </p>
             </div>
-            <div style={{
-              background: '#E0F2FE', borderRadius: '12px', padding: '8px 16px',
-              border: '1px solid #BAE6FD', fontSize: '13px', color: '#0369A1', fontWeight: '600'
-            }}>
-              💉 Service Actif
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <RefreshButton onRefresh={fetchData} color="#0369A1" />
+              <div style={{
+                background: '#E0F2FE', borderRadius: '12px', padding: '8px 16px',
+                border: '1px solid #BAE6FD', fontSize: '13px', color: '#0369A1', fontWeight: '600'
+              }}>
+                💉 Service Actif
+              </div>
             </div>
           </div>
 

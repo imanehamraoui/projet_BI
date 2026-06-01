@@ -11,11 +11,11 @@ export default function ProtectedRoute({
   children: React.ReactNode;
   requiredRoles?: string[];
 }) {
-  const { keycloak, isLoading } = useKeycloak();
+  const { keycloak, initialized } = useKeycloak();
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoading) {
+    if (initialized) {
       if (!keycloak?.authenticated) {
         router.push('/login');
       } else if (requiredRoles && requiredRoles.length > 0) {
@@ -26,9 +26,9 @@ export default function ProtectedRoute({
         }
       }
     }
-  }, [isLoading, keycloak, router, requiredRoles]);
+  }, [initialized, keycloak, router, requiredRoles]);
 
-  if (isLoading || !keycloak?.authenticated) {
+  if (!initialized || !keycloak?.authenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-blue-950">
         <div className="text-white text-xl">Vérification des permissions...</div>
