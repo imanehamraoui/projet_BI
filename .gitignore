@@ -6,3 +6,7 @@ ml/LICENSE
 frontend/node_modules/
 frontend/.next/
 node_modules/
+__pycache__/
+*.pyc
+.env
+*.log
