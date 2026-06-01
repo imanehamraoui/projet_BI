@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import api from '@/lib/api';
 import Sidebar from '@/components/Sidebar';
 import RefreshButton from '@/components/RefreshButton';
 import { useAutoRefresh } from '@/components/useAutoRefresh';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { ensureKeycloakSession } from '@/lib/keycloak-init';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 interface KPI {
   revenus_total?: number;
@@ -51,6 +52,8 @@ export default function DirecteurFinances() {
   const [filterService, setFilterService] = useState('Tous');
 
   const fetchData = useCallback(async () => {
+    const authenticated = await ensureKeycloakSession();
+    if (!authenticated) return;
     try {
       const res = await api.get('/api/dashboard/kpis?annee=2024');
       if (res.data?.kpis) {
@@ -58,6 +61,12 @@ export default function DirecteurFinances() {
       }
     } catch {}
   }, []);
+
+  useEffect(() => {
+    ensureKeycloakSession().then((auth) => {
+      if (auth) fetchData();
+    });
+  }, [fetchData]);
 
   useAutoRefresh(fetchData, 30);
 
@@ -101,7 +110,7 @@ export default function DirecteurFinances() {
             <div key={i} style={{ background: 'white', borderRadius: '16px', padding: '20px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                 <p style={{ margin: 0, color: '#64748b', fontSize: '12px', fontWeight: '600' }}>{k.label}</p>
-                <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: k.bg, border: \`2px solid \${k.color}\` }} />
+                <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: k.bg, border: `2px solid ${k.color}` }} />
               </div>
               <p style={{ margin: 0, color: '#1e293b', fontSize: '24px', fontWeight: '800' }}>{k.value}</p>
             </div>
@@ -122,7 +131,7 @@ export default function DirecteurFinances() {
               <LineChart data={dataEvolution} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
                 <XAxis dataKey="mois" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b' }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={(val) => \`\${val / 1000}k\`} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={(val) => `${val / 1000}k`} />
                 <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
                 <Line type="monotone" dataKey="revenus" stroke="#16a34a" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
                 <Line type="monotone" dataKey="depenses" stroke="#dc2626" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />

@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import keycloak from '@/lib/keycloak';
 import api from '@/lib/api';
 import Sidebar from '@/components/Sidebar';
 import RefreshButton from '@/components/RefreshButton';
 import { useAutoRefresh } from '@/components/useAutoRefresh';
+import { ensureKeycloakSession } from '@/lib/keycloak-init';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer,
@@ -26,7 +27,7 @@ interface AuditLog {
   resource: string;
 }
 
-const tendances = [
+const defaultTendances = [
   { mois: 'Jan', consultations: 320, revenus: 85000 },
   { mois: 'Fév', consultations: 280, revenus: 92000 },
   { mois: 'Mar', consultations: 410, revenus: 78000 },
@@ -37,7 +38,7 @@ const tendances = [
   { mois: 'Aoû', consultations: 310, revenus: 95000 },
 ];
 
-const pieData = [
+const defaultPieData = [
   { name: 'Médecins', value: 28 },
   { name: 'Infirmiers', value: 85 },
   { name: 'Administratifs', value: 42 },
@@ -46,7 +47,7 @@ const pieData = [
 
 const COLORS = ['#1565C0', '#0EA5E9', '#16a34a', '#7C3AED'];
 
-const weekDays = [
+const defaultWeekDays = [
   { day: 'Lun', date: '07' },
   { day: 'Mar', date: '08', active: true },
   { day: 'Mer', date: '09' },
@@ -56,41 +57,62 @@ const weekDays = [
   { day: 'Dim', date: '13' },
 ];
 
-const auditSimules = [
-  { user: 'dr.benali', action: 'GET /api/patients', timestamp: '08:23', resource: 'Patients' },
-  { user: 'marie.admin', action: 'GET /api/dashboard/kpis', timestamp: '08:45', resource: 'KPIs' },
-  { user: 'prof.rhanem', action: 'GET /api/patients', timestamp: '09:12', resource: 'Recherche' },
-  { user: 'sophie.inf', action: 'GET /api/patients/{id}', timestamp: '09:30', resource: 'Patient #142' },
-  { user: 'dr.alaoui', action: 'GET /api/dashboard', timestamp: '10:05', resource: 'Dashboard' },
-];
-
 export default function DashboardDirecteur() {
   const [kpis, setKpis] = useState<KPI | null>(null);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(auditSimules as any);
-  const [userName, setUserName] = useState('Directeur');
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [profile, setProfile] = useState<any>(null);
+  const [tendances, setTendances] = useState<any[]>(defaultTendances);
+  const [parService, setParService] = useState<any[]>(defaultPieData);
+  const [agenda, setAgenda] = useState<any[]>(defaultWeekDays);
+  
+  const userName = profile?.nom || profile?.name || 'Directeur';
 
   const fetchData = useCallback(async () => {
+    const authenticated = await ensureKeycloakSession();
+    if (!authenticated) return;
     try {
-      const [kpiRes, auditRes] = await Promise.all([
-        api.get('/api/dashboard/kpis?annee=2024'),
+      const [overviewRes, auditRes] = await Promise.all([
+        api.get('/api/dashboard/overview?annee=2024'),
         api.get('/api/audit'),
       ]);
       
-      if (kpiRes.data?.kpis) {
-        const d = kpiRes.data.kpis;
-        setKpis({
-          total_consultations: d.activite?.total || 0,
-          total_patients: d.activite?.patients_uniques || 0,
-          diagnostics_count: d.top_diagnostics?.length || 0,
-          revenus_total: d.financier?.chiffre_affaires || 0
-        });
+      if (overviewRes.data) {
+        const d = overviewRes.data;
+        if (d.kpis) {
+          setKpis({
+            total_consultations: d.kpis.activite?.total || 0,
+            total_patients: d.kpis.activite?.patients_uniques || 0,
+            diagnostics_count: d.kpis.top_diagnostics?.length || 0,
+            revenus_total: d.kpis.financier?.chiffre_affaires || 0
+          });
+        }
+        if (d.profile) setProfile(d.profile);
+        if (d.tendances) setTendances(d.tendances);
+        if (d.par_service) {
+          // Normalize service data for Pie chart
+          const normalizedService = d.par_service.map((s: any) => ({
+            name: s.name || s.service || s.label,
+            value: s.value || s.count || s.total
+          }));
+          setParService(normalizedService);
+        }
+        if (d.agenda) setAgenda(d.agenda);
       }
       
-      if (auditRes.data?.data?.length > 0) {
-        setAuditLogs(auditRes.data.data.slice(0, 5));
+      const logs = auditRes.data?.data || auditRes.data;
+      if (Array.isArray(logs) && logs.length > 0) {
+        setAuditLogs(logs.slice(0, 5));
       }
-    } catch {}
+    } catch (e) {
+      console.error(e);
+    }
   }, []);
+
+  useEffect(() => {
+    ensureKeycloakSession().then((auth) => {
+      if (auth) fetchData();
+    });
+  }, [fetchData]);
 
   useAutoRefresh(fetchData, 30);
 
@@ -215,18 +237,18 @@ export default function DashboardDirecteur() {
               <p style={{ margin: '0 0 16px', color: '#1a1a2e', fontSize: '15px', fontWeight: '700' }}>Personnel par rôle</p>
               <ResponsiveContainer width="100%" height={160}>
                 <PieChart>
-                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={5} dataKey="value">
-                    {pieData.map((_, index) => (
-                      <Cell key={index} fill={COLORS[index]} />
+                  <Pie data={parService} cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={5} dataKey="value">
+                    {parService.map((_, index) => (
+                      <Cell key={index} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
                   <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
                 </PieChart>
               </ResponsiveContainer>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
-                {pieData.map((item, i) => (
+                {parService.map((item, i) => (
                   <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: COLORS[i] }} />
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: COLORS[i % COLORS.length] }} />
                     <span style={{ fontSize: '10px', color: '#6B7280' }}>{item.name}: {item.value}</span>
                   </div>
                 ))}
@@ -301,8 +323,8 @@ export default function DashboardDirecteur() {
           <div style={{ background: 'white', borderRadius: '20px', padding: '20px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
             <p style={{ margin: '0 0 12px', fontWeight: '700', color: '#1a1a2e', fontSize: '14px' }}>Calendrier</p>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              {weekDays.map((d) => (
-                <div key={d.day} style={{ textAlign: 'center' }}>
+              {agenda.map((d: any, i: number) => (
+                <div key={i} style={{ textAlign: 'center' }}>
                   <p style={{ margin: '0 0 4px', fontSize: '9px', color: '#9CA3AF' }}>{d.day}</p>
                   <div style={{
                     width: '28px', height: '28px', borderRadius: '8px',

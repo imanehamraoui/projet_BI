@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import api from '@/lib/api';
 import Sidebar from '@/components/Sidebar';
 import RefreshButton from '@/components/RefreshButton';
 import { useAutoRefresh } from '@/components/useAutoRefresh';
+import { ensureKeycloakSession } from '@/lib/keycloak-init';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 
 const personnelSimule = [
@@ -50,6 +51,12 @@ export default function DirecteurPersonnel() {
   const fetchData = useCallback(async () => {
     // API not available for personnel yet, using simulated data
   }, []);
+
+  useEffect(() => {
+    ensureKeycloakSession().then((auth) => {
+      if (auth) fetchData();
+    });
+  }, [fetchData]);
 
   useAutoRefresh(fetchData, 30);
 
@@ -194,7 +201,7 @@ export default function DirecteurPersonnel() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                           <div style={{ 
                             width: '36px', height: '36px', borderRadius: '10px', 
-                            background: \`\${getRoleColor(emp.role)}15\`, color: getRoleColor(emp.role),
+                            background: `${getRoleColor(emp.role)}15`, color: getRoleColor(emp.role),
                             display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '14px'
                           }}>
                             {emp.nom.charAt(0)}

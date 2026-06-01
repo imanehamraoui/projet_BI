@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
 import RefreshButton from '@/components/RefreshButton';
 import { useAutoRefresh } from '@/components/useAutoRefresh';
 import api from '@/lib/api';
+import { ensureKeycloakSession } from '@/lib/keycloak-init';
 
 interface Publication {
   id: number;
@@ -48,10 +49,19 @@ export default function ChercheurRapports() {
   const [notification, setNotification] = useState('');
 
   const fetchData = useCallback(async () => {
+    const authenticated = await ensureKeycloakSession();
+    if (!authenticated) return;
+
     try {
-      await api.get('/api/patients');
+      await api.get('/api/chercheur/dashboard');
     } catch {}
   }, []);
+
+  useEffect(() => {
+    ensureKeycloakSession().then((authenticated) => {
+      if (authenticated) fetchData();
+    });
+  }, [fetchData]);
 
   useAutoRefresh(fetchData, 30);
 

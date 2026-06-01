@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import Sidebar from '@/components/Sidebar';
 import RefreshButton from '@/components/RefreshButton';
 import { useAutoRefresh } from '@/components/useAutoRefresh';
 import api from '@/lib/api';
+import { ensureKeycloakSession } from '@/lib/keycloak-init';
+import { getChercheurApiError, isChercheurAccount } from '@/lib/chercheur-utils';
 
 interface Patient {
   token_anonyme: string;
@@ -14,18 +16,7 @@ interface Patient {
   diagnostic_code: string;
 }
 
-const patientsDefaut: Patient[] = [
-  { token_anonyme: 'TK-A1B2C3D4', age: 45, sexe: 'M', region: 'Rabat', diagnostic_code: 'I10.0' },
-  { token_anonyme: 'TK-E5F6G7H8', age: 32, sexe: 'F', region: 'Casablanca', diagnostic_code: 'G43.9' },
-  { token_anonyme: 'TK-I9J0K1L2', age: 58, sexe: 'M', region: 'Fès', diagnostic_code: 'I48.0' },
-  { token_anonyme: 'TK-M3N4O5P6', age: 28, sexe: 'F', region: 'Marrakech', diagnostic_code: 'J30.1' },
-  { token_anonyme: 'TK-Q7R8S9T0', age: 67, sexe: 'M', region: 'Rabat', diagnostic_code: 'I50.0' },
-  { token_anonyme: 'TK-U1V2W3X4', age: 41, sexe: 'F', region: 'Tanger', diagnostic_code: 'G40.9' },
-  { token_anonyme: 'TK-Y5Z6A7B8', age: 52, sexe: 'M', region: 'Casablanca', diagnostic_code: 'M54.5' },
-  { token_anonyme: 'TK-C9D0E1F2', age: 35, sexe: 'F', region: 'Rabat', diagnostic_code: 'J45.0' },
-  { token_anonyme: 'TK-G3H4I5J6', age: 63, sexe: 'M', region: 'Fès', diagnostic_code: 'E11.9' },
-  { token_anonyme: 'TK-K7L8M9N0', age: 29, sexe: 'F', region: 'Marrakech', diagnostic_code: 'F32.9' },
-];
+const patientsDefaut: Patient[] = [];
 
 export default function ChercheurDonnees() {
   const [patients, setPatients] = useState<Patient[]>(patientsDefaut);
@@ -33,28 +24,36 @@ export default function ChercheurDonnees() {
   const [filterRegion, setFilterRegion] = useState('Tous');
   const [filterSexe, setFilterSexe] = useState('Tous');
   const [page, setPage] = useState(1);
+  const [error, setError] = useState('');
   const itemsPerPage = 8;
 
   const fetchData = useCallback(async () => {
+    const authenticated = await ensureKeycloakSession();
+    if (!authenticated) return;
+
     try {
-      const res = await api.get('/api/patients');
-      if (res.data?.data?.length > 0) {
-        const formattedData = res.data.data.map((p: any) => ({
-          ...p,
-          token_anonyme: `TK-${Math.random().toString(36).substr(2,8).toUpperCase()}`,
-          age: p.age || 40,
-          sexe: p.sexe || 'M',
-          region: p.region || 'Rabat',
-          diagnostic_code: p.diagnostic_code || 'J10.0'
-        }));
-        setPatients(formattedData);
+      setError('');
+      const res = await api.get('/api/chercheur/dashboard?limit=500');
+      if (res.data?.patients) {
+        setPatients(res.data.patients);
       }
-    } catch {}
+    } catch (e) {
+      setError(getChercheurApiError(e));
+    }
   }, []);
+
+  useEffect(() => {
+    ensureKeycloakSession().then((authenticated) => {
+      if (authenticated) fetchData();
+    });
+  }, [fetchData]);
 
   useAutoRefresh(fetchData, 30);
 
-  const regions = ['Tous', 'Rabat', 'Casablanca', 'Fès', 'Marrakech', 'Tanger'];
+  const regions = useMemo(() => {
+    const unique = [...new Set(patients.map((p) => p.region).filter((r) => r && r !== '—'))];
+    return ['Tous', ...unique];
+  }, [patients]);
   const sexes = ['Tous', 'M', 'F'];
 
   const filtered = patients.filter(p => {
@@ -73,6 +72,20 @@ export default function ChercheurDonnees() {
       <Sidebar role="chercheur" activeItem="Données" />
 
       <div style={{ marginLeft: '90px', flex: 1, padding: '24px' }}>
+        {error && (
+          <div style={{
+            background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '12px',
+            padding: '12px 16px', marginBottom: '16px', color: '#B91C1C', fontSize: '13px'
+          }}>{error}</div>
+        )}
+        {!isChercheurAccount() && !error && (
+          <div style={{
+            background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '12px',
+            padding: '12px 16px', marginBottom: '16px', color: '#92400E', fontSize: '13px'
+          }}>
+            Mode consultation (compte médecin) — données anonymisées en lecture seule.
+          </div>
+        )}
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <div>

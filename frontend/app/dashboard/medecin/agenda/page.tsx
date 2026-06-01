@@ -1,63 +1,108 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import api from '@/lib/api';
+import { ensureKeycloakSession } from '@/lib/keycloak-init';
 import Sidebar from '@/components/Sidebar';
+import RefreshButton from '@/components/RefreshButton';
+import { useAutoRefresh } from '@/components/useAutoRefresh';
 
-interface RDV {
-  id: number;
-  patient: string;
-  type: string;
+interface AgendaItem {
+  id?: number;
+  agenda_id?: number;
   heure: string;
+  patient: string;
+  type_rdv: string;
   duree: string;
-  service: string;
-  statut: 'Confirmé' | 'En attente' | 'Annulé';
+  statut: string;
+  service?: string;
+  date_rdv?: string;
 }
 
-const rdvData: RDV[] = [
-  { id: 1, patient: 'El Idrissi Youssef', type: 'Consultation', heure: '09:00', duree: '30 min', service: 'Cardiologie', statut: 'Confirmé' },
-  { id: 2, patient: 'Benali Fatima', type: 'Suivi', heure: '09:30', duree: '20 min', service: 'Neurologie', statut: 'Confirmé' },
-  { id: 3, patient: 'Alaoui Mohamed', type: 'Urgence', heure: '10:00', duree: '45 min', service: 'Cardiologie', statut: 'En attente' },
-  { id: 4, patient: 'Chraibi Sara', type: 'Consultation', heure: '11:00', duree: '30 min', service: 'Pédiatrie', statut: 'Confirmé' },
-  { id: 5, patient: 'Tazi Ahmed', type: 'Suivi', heure: '14:00', duree: '20 min', service: 'Cardiologie', statut: 'Confirmé' },
-  { id: 6, patient: 'Berrada Khadija', type: 'Consultation', heure: '14:30', duree: '30 min', service: 'Neurologie', statut: 'En attente' },
-  { id: 7, patient: 'Mansouri Omar', type: 'Suivi', heure: '15:30', duree: '20 min', service: 'Cardiologie', statut: 'Annulé' },
-];
-
-const weekDays = [
-  { day: 'Lun', date: '06', rdv: 4 },
-  { day: 'Mar', date: '07', rdv: 7 },
-  { day: 'Mer', date: '08', rdv: 5, active: true },
-  { day: 'Jeu', date: '09', rdv: 6 },
-  { day: 'Ven', date: '10', rdv: 3 },
-  { day: 'Sam', date: '11', rdv: 2 },
-  { day: 'Dim', date: '12', rdv: 0 },
-];
-
-const statutColors: Record<string, { bg: string; color: string }> = {
-  'Confirmé': { bg: '#DCFCE7', color: '#16a34a' },
-  'En attente': { bg: '#FEF9C3', color: '#ca8a04' },
-  'Annulé': { bg: '#FEE2E2', color: '#dc2626' },
-};
-
-const typeColors: Record<string, string> = {
-  'Consultation': '#1565C0',
-  'Suivi': '#7C3AED',
-  'Urgence': '#DC2626',
-};
-
 export default function MedecinAgenda() {
-  const [rdvs, setRdvs] = useState<RDV[]>(rdvData);
+  const [rdvs, setRdvs] = useState<AgendaItem[]>([]);
+
+  // Restored
+  const weekDays = [
+    { day: 'Lun', date: '06', rdv: 4 },
+    { day: 'Mar', date: '07', rdv: 7 },
+    { day: 'Mer', date: '08', rdv: 5, active: true },
+    { day: 'Jeu', date: '09', rdv: 6 },
+    { day: 'Ven', date: '10', rdv: 3 },
+    { day: 'Sam', date: '11', rdv: 2 },
+    { day: 'Dim', date: '12', rdv: 0 },
+  ];
+
+  const statutColors: Record<string, { bg: string; color: string }> = {
+    'Confirmé': { bg: '#DCFCE7', color: '#16a34a' },
+    'En attente': { bg: '#FEF9C3', color: '#ca8a04' },
+    'Annulé': { bg: '#FEE2E2', color: '#dc2626' },
+  };
+
+  const typeColors: Record<string, string> = {
+    'Consultation': '#1565C0',
+    'Suivi': '#7C3AED',
+    'Urgence': '#DC2626',
+  };
+
+  const defaultStatutStyle = { bg: '#F3F4F6', color: '#6B7280' };
+
+  function normalizeStatut(statut?: string): string {
+    if (!statut) return 'En attente';
+    if (statut.startsWith('Confirm')) return 'Confirmé';
+    if (statut.startsWith('Annul')) return 'Annulé';
+    if (statut.startsWith('En attente')) return 'En attente';
+    return statut;
+  }
+
+  function getStatutStyle(statut?: string) {
+    return statutColors[normalizeStatut(statut)] ?? defaultStatutStyle;
+  }
+
+  function getTypeColor(type?: string) {
+    return typeColors[type || ''] ?? '#1565C0';
+  }
+
+  function getAgendaId(item: AgendaItem) {
+    return item.agenda_id ?? item.id ?? 0;
+  }
   const [selectedDay, setSelectedDay] = useState('08');
   const [filter, setFilter] = useState('Tous');
-  const [selectedRdv, setSelectedRdv] = useState<RDV | null>(null);
+  const [selectedRdv, setSelectedRdv] = useState<AgendaItem | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [showConfirmAnnuler, setShowConfirmAnnuler] = useState<number | null>(null);
   const [notification, setNotification] = useState('');
 
-  const filters = ['Tous', 'Confirmé', 'En attente', 'Annulé'];
-  const filtered = rdvs.filter(r => filter === 'Tous' || r.statut === filter);
+  const fetchData = useCallback(async () => {
+    const authenticated = await ensureKeycloakSession();
+    if (!authenticated) return;
 
-  const handleVoir = (rdv: RDV) => {
+    try {
+      const res = await api.get('/api/agenda');
+      if (res.data?.data) {
+        setRdvs(
+          res.data.data.map((r: AgendaItem) => ({
+            ...r,
+            statut: normalizeStatut(r.statut),
+            heure: String(r.heure || '').slice(0, 5),
+          }))
+        );
+      }
+    } catch {}
+  }, []);
+
+  useAutoRefresh(fetchData, 30);
+
+  useEffect(() => {
+    ensureKeycloakSession().then((authenticated) => {
+      if (authenticated) fetchData();
+    });
+  }, [fetchData]);
+
+  const filters = ['Tous', 'Confirmé', 'En attente', 'Annulé'];
+  const filtered = rdvs.filter((r) => filter === 'Tous' || normalizeStatut(r.statut) === filter);
+
+  const handleVoir = (rdv: AgendaItem) => {
     setSelectedRdv(rdv);
     setShowModal(true);
   };
@@ -67,14 +112,14 @@ export default function MedecinAgenda() {
   };
 
   const confirmerAnnulation = (id: number) => {
-    setRdvs(prev => prev.map(r => r.id === id ? { ...r, statut: 'Annulé' } : r));
+    setRdvs(prev => prev.map(r => getAgendaId(r) === id ? { ...r, statut: 'Annulé' } : r));
     setShowConfirmAnnuler(null);
     setNotification('RDV annulé avec succès');
     setTimeout(() => setNotification(''), 3000);
   };
 
   const handleConfirmer = (id: number) => {
-    setRdvs(prev => prev.map(r => r.id === id ? { ...r, statut: 'Confirmé' } : r));
+    setRdvs(prev => prev.map(r => getAgendaId(r) === id ? { ...r, statut: 'Confirmé' } : r));
     setNotification('RDV confirmé avec succès');
     setTimeout(() => setNotification(''), 3000);
   };
@@ -120,7 +165,7 @@ export default function MedecinAgenda() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '20px', padding: '16px', background: '#F0F9FF', borderRadius: '16px' }}>
               <div style={{
                 width: '52px', height: '52px', borderRadius: '14px',
-                background: `linear-gradient(135deg, ${typeColors[selectedRdv.type]}, ${typeColors[selectedRdv.type]}99)`,
+                background: `linear-gradient(135deg, ${getTypeColor(selectedRdv.type_rdv)}, ${getTypeColor(selectedRdv.type_rdv)}99)`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: 'white', fontWeight: '700', fontSize: '20px'
               }}>
@@ -133,7 +178,7 @@ export default function MedecinAgenda() {
             </div>
 
             {[
-              { label: 'Type', value: selectedRdv.type },
+              { label: 'Type', value: selectedRdv.type_rdv },
               { label: 'Heure', value: selectedRdv.heure },
               { label: 'Durée', value: selectedRdv.duree },
               { label: 'Service', value: selectedRdv.service },
@@ -149,8 +194,8 @@ export default function MedecinAgenda() {
             ))}
 
             <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-              {selectedRdv.statut === 'En attente' && (
-                <button onClick={() => { handleConfirmer(selectedRdv.id); setShowModal(false); }} style={{
+              {selectedRdv && normalizeStatut(selectedRdv.statut) === 'En attente' && (
+                <button onClick={() => { handleConfirmer(getAgendaId(selectedRdv)); setShowModal(false); }} style={{
                   flex: 1, background: 'linear-gradient(135deg, #16a34a, #15803d)',
                   color: 'white', border: 'none', borderRadius: '12px',
                   padding: '12px', fontSize: '13px', cursor: 'pointer', fontWeight: '600'
@@ -158,8 +203,8 @@ export default function MedecinAgenda() {
                   ✅ Confirmer
                 </button>
               )}
-              {selectedRdv.statut !== 'Annulé' && (
-                <button onClick={() => { handleAnnuler(selectedRdv.id); setShowModal(false); }} style={{
+              {selectedRdv && normalizeStatut(selectedRdv.statut) !== 'Annulé' && (
+                <button onClick={() => { handleAnnuler(getAgendaId(selectedRdv)); setShowModal(false); }} style={{
                   flex: 1, background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
                   color: 'white', border: 'none', borderRadius: '12px',
                   padding: '12px', fontSize: '13px', cursor: 'pointer', fontWeight: '600'
@@ -278,11 +323,11 @@ export default function MedecinAgenda() {
         {/* Liste RDV */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {filtered.map((rdv) => (
-            <div key={rdv.id} style={{
+            <div key={getAgendaId(rdv)} style={{
               background: 'white', borderRadius: '16px', padding: '16px 20px',
               boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
               display: 'flex', alignItems: 'center', gap: '16px',
-              borderLeft: `4px solid ${typeColors[rdv.type] || '#1565C0'}`
+              borderLeft: `4px solid ${getTypeColor(rdv.type_rdv)}`
             }}>
               <div style={{ textAlign: 'center', minWidth: '60px' }}>
                 <p style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#1565C0' }}>{rdv.heure}</p>
@@ -292,7 +337,7 @@ export default function MedecinAgenda() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
                 <div style={{
                   width: '40px', height: '40px', borderRadius: '12px',
-                  background: `linear-gradient(135deg, ${typeColors[rdv.type]}, ${typeColors[rdv.type]}99)`,
+                  background: `linear-gradient(135deg, ${getTypeColor(rdv.type_rdv)}, ${getTypeColor(rdv.type_rdv)}99)`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   color: 'white', fontWeight: '700', fontSize: '16px'
                 }}>
@@ -304,28 +349,29 @@ export default function MedecinAgenda() {
                 </div>
               </div>
               <span style={{
-                background: `${typeColors[rdv.type]}15`, color: typeColors[rdv.type],
+                background: `${getTypeColor(rdv.type_rdv)}15`, color: getTypeColor(rdv.type_rdv),
                 padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: '600'
-              }}>{rdv.type}</span>
+              }}>{rdv.type_rdv}</span>
               <span style={{
-                background: statutColors[rdv.statut].bg, color: statutColors[rdv.statut].color,
+                background: getStatutStyle(rdv.statut).bg,
+                color: getStatutStyle(rdv.statut).color,
                 padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: '600'
-              }}>{rdv.statut}</span>
+              }}>{normalizeStatut(rdv.statut)}</span>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button onClick={() => handleVoir(rdv)} style={{
                   background: '#EEF2FF', color: '#1565C0', border: 'none',
                   borderRadius: '8px', padding: '6px 12px', fontSize: '11px',
                   cursor: 'pointer', fontWeight: '600'
                 }}>Voir</button>
-                {rdv.statut === 'En attente' && (
-                  <button onClick={() => handleConfirmer(rdv.id)} style={{
+                {normalizeStatut(rdv.statut) === 'En attente' && (
+                  <button onClick={() => handleConfirmer(getAgendaId(rdv))} style={{
                     background: '#DCFCE7', color: '#16a34a', border: 'none',
                     borderRadius: '8px', padding: '6px 12px', fontSize: '11px',
                     cursor: 'pointer', fontWeight: '600'
                   }}>Confirmer</button>
                 )}
-                {rdv.statut !== 'Annulé' && (
-                  <button onClick={() => handleAnnuler(rdv.id)} style={{
+                {normalizeStatut(rdv.statut) !== 'Annulé' && (
+                  <button onClick={() => handleAnnuler(getAgendaId(rdv))} style={{
                     background: '#FEE2E2', color: '#dc2626', border: 'none',
                     borderRadius: '8px', padding: '6px 12px', fontSize: '11px',
                     cursor: 'pointer', fontWeight: '600'
