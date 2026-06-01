@@ -1,163 +1,339 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useKeycloak } from '@react-keycloak/web';
+import { useState } from 'react';
+import Sidebar from '@/components/Sidebar';
 
-export default function AgendaPage() {
-  const router = useRouter();
-  const { keycloak } = useKeycloak();
+interface RDV {
+  id: number;
+  patient: string;
+  type: string;
+  heure: string;
+  duree: string;
+  service: string;
+  statut: 'Confirmé' | 'En attente' | 'Annulé';
+}
 
-  const weekDays = [
-    { day: 'Lun', date: '07', slots: 4 },
-    { day: 'Mar', date: '08', slots: 6, active: true },
-    { day: 'Mer', date: '09', slots: 5 },
-    { day: 'Jeu', date: '10', slots: 3 },
-    { day: 'Ven', date: '11', slots: 7 },
-    { day: 'Sam', date: '12', slots: 2 },
-    { day: 'Dim', date: '13', slots: 0 },
-  ];
+const rdvData: RDV[] = [
+  { id: 1, patient: 'El Idrissi Youssef', type: 'Consultation', heure: '09:00', duree: '30 min', service: 'Cardiologie', statut: 'Confirmé' },
+  { id: 2, patient: 'Benali Fatima', type: 'Suivi', heure: '09:30', duree: '20 min', service: 'Neurologie', statut: 'Confirmé' },
+  { id: 3, patient: 'Alaoui Mohamed', type: 'Urgence', heure: '10:00', duree: '45 min', service: 'Cardiologie', statut: 'En attente' },
+  { id: 4, patient: 'Chraibi Sara', type: 'Consultation', heure: '11:00', duree: '30 min', service: 'Pédiatrie', statut: 'Confirmé' },
+  { id: 5, patient: 'Tazi Ahmed', type: 'Suivi', heure: '14:00', duree: '20 min', service: 'Cardiologie', statut: 'Confirmé' },
+  { id: 6, patient: 'Berrada Khadija', type: 'Consultation', heure: '14:30', duree: '30 min', service: 'Neurologie', statut: 'En attente' },
+  { id: 7, patient: 'Mansouri Omar', type: 'Suivi', heure: '15:30', duree: '20 min', service: 'Cardiologie', statut: 'Annulé' },
+];
+
+const weekDays = [
+  { day: 'Lun', date: '06', rdv: 4 },
+  { day: 'Mar', date: '07', rdv: 7 },
+  { day: 'Mer', date: '08', rdv: 5, active: true },
+  { day: 'Jeu', date: '09', rdv: 6 },
+  { day: 'Ven', date: '10', rdv: 3 },
+  { day: 'Sam', date: '11', rdv: 2 },
+  { day: 'Dim', date: '12', rdv: 0 },
+];
+
+const statutColors: Record<string, { bg: string; color: string }> = {
+  'Confirmé': { bg: '#DCFCE7', color: '#16a34a' },
+  'En attente': { bg: '#FEF9C3', color: '#ca8a04' },
+  'Annulé': { bg: '#FEE2E2', color: '#dc2626' },
+};
+
+const typeColors: Record<string, string> = {
+  'Consultation': '#1565C0',
+  'Suivi': '#7C3AED',
+  'Urgence': '#DC2626',
+};
+
+export default function MedecinAgenda() {
+  const [rdvs, setRdvs] = useState<RDV[]>(rdvData);
+  const [selectedDay, setSelectedDay] = useState('08');
+  const [filter, setFilter] = useState('Tous');
+  const [selectedRdv, setSelectedRdv] = useState<RDV | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [showConfirmAnnuler, setShowConfirmAnnuler] = useState<number | null>(null);
+  const [notification, setNotification] = useState('');
+
+  const filters = ['Tous', 'Confirmé', 'En attente', 'Annulé'];
+  const filtered = rdvs.filter(r => filter === 'Tous' || r.statut === filter);
+
+  const handleVoir = (rdv: RDV) => {
+    setSelectedRdv(rdv);
+    setShowModal(true);
+  };
+
+  const handleAnnuler = (id: number) => {
+    setShowConfirmAnnuler(id);
+  };
+
+  const confirmerAnnulation = (id: number) => {
+    setRdvs(prev => prev.map(r => r.id === id ? { ...r, statut: 'Annulé' } : r));
+    setShowConfirmAnnuler(null);
+    setNotification('RDV annulé avec succès');
+    setTimeout(() => setNotification(''), 3000);
+  };
+
+  const handleConfirmer = (id: number) => {
+    setRdvs(prev => prev.map(r => r.id === id ? { ...r, statut: 'Confirmé' } : r));
+    setNotification('RDV confirmé avec succès');
+    setTimeout(() => setNotification(''), 3000);
+  };
 
   return (
-    <div style={{
-      background: '#E8F0FE',
-      minHeight: '100vh',
-      display: 'flex',
-      fontFamily: "'Segoe UI', sans-serif"
-    }}>
-      {/* ── SIDEBAR ── */}
-      <div style={{
-        width: '90px',
-        background: 'white',
-        borderRadius: '0 24px 24px 0',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        padding: '28px 0',
-        gap: '28px',
-        boxShadow: '4px 0 20px rgba(21,101,192,0.08)',
-        position: 'fixed',
-        top: 0, bottom: 0, left: 0,
-        zIndex: 100
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{
-            width: '48px', height: '48px',
-            background: 'linear-gradient(135deg, #1565C0, #1976D2)',
-            borderRadius: '14px',
-            display: 'flex', alignItems: 'center',
-            justifyContent: 'center', margin: '0 auto 6px'
-          }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z" fill="white"/>
-            </svg>
-          </div>
-          <p style={{ fontSize: '10px', color: '#1565C0', fontWeight: '700', margin: 0 }}>Médecin</p>
-        </div>
+    <div style={{ background: '#E8F0FE', minHeight: '100vh', display: 'flex', fontFamily: "'Segoe UI', sans-serif" }}>
+      <Sidebar role="medecin" activeItem="Agenda" />
 
-        {[
-          { label: 'Dashboard', svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" fill="#1565C0"/><rect x="14" y="3" width="7" height="7" rx="1" fill="#1565C0" opacity="0.4"/><rect x="3" y="14" width="7" height="7" rx="1" fill="#1565C0" opacity="0.4"/><rect x="14" y="14" width="7" height="7" rx="1" fill="#1565C0" opacity="0.4"/></svg>, onClick: () => router.push('/dashboard/medecin') },
-          { label: 'Patients', svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" fill="#9CA3AF"/></svg>, onClick: () => router.push('/dashboard/medecin/patients') },
-          { label: 'Messages', svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" fill="#9CA3AF"/></svg>, onClick: () => router.push('/dashboard/medecin/messages') },
-          { label: 'Agenda', active: true, svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z" fill="#1565C0"/></svg>, onClick: () => router.push('/dashboard/medecin/agenda') },
-          { label: 'Stats', svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z" fill="#9CA3AF"/></svg>, onClick: () => router.push('/dashboard/medecin/stats') },
-        ].map((item) => (
-          <div key={item.label} style={{
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px',
-            cursor: 'pointer'
-          }} onClick={item.onClick}>
-            <div style={{
-              width: '44px', height: '44px', borderRadius: '12px',
-              background: item.active ? '#E3F2FD' : 'transparent',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              borderLeft: item.active ? '3px solid #1565C0' : '3px solid transparent',
-              transition: 'all 0.2s ease'
-            }}>
-              {item.svg}
-            </div>
-            <span style={{ fontSize: '9px', color: item.active ? '#1565C0' : '#9CA3AF', fontWeight: item.active ? '700' : '400' }}>
-              {item.label}
-            </span>
-          </div>
-        ))}
-
-        <div style={{ marginTop: 'auto' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
-            onClick={() => keycloak?.logout()}>
-            <div style={{
-              width: '44px', height: '44px', borderRadius: '12px',
-              background: '#FEF2F2',
-              display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" fill="#EF4444"/>
-              </svg>
-            </div>
-            <span style={{ fontSize: '9px', color: '#EF4444', fontWeight: '600' }}>Logout</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ── MAIN CONTENT ── */}
-      <div style={{ marginLeft: '90px', flex: 1, padding: '24px' }}>
+      {/* Notification */}
+      {notification && (
         <div style={{
-          background: 'white',
-          borderRadius: '16px',
-          padding: '24px',
-          boxShadow: '0 2px 8px rgba(21,101,192,0.08)'
+          position: 'fixed', top: '20px', right: '20px', zIndex: 1000,
+          background: '#DCFCE7', border: '1px solid #86EFAC',
+          borderRadius: '12px', padding: '12px 20px',
+          color: '#16a34a', fontWeight: '600', fontSize: '13px',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
         }}>
-          <h1 style={{ color: '#1565C0', marginBottom: '16px' }}>📅 Agenda - Semaine du 7-13 Juin</h1>
-          
+          ✅ {notification}
+        </div>
+      )}
+
+      {/* Modal Voir RDV */}
+      {showModal && selectedRdv && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 999
+        }}>
           <div style={{
-            marginTop: '24px',
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
-            gap: '12px'
+            background: 'white', borderRadius: '24px', padding: '32px',
+            width: '460px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)'
           }}>
-            {weekDays.map((day, idx) => (
-              <div key={idx} style={{
-                border: day.active ? '2px solid #1565C0' : '1px solid #E0E7FF',
-                borderRadius: '8px',
-                padding: '16px',
-                textAlign: 'center',
-                cursor: 'pointer',
-                background: day.active ? '#E3F2FD' : 'white',
-                transition: 'all 0.2s ease'
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: '#1a1a2e' }}>
+                Détails du RDV
+              </h2>
+              <button onClick={() => setShowModal(false)} style={{
+                background: '#F3F4F6', border: 'none', borderRadius: '8px',
+                width: '32px', height: '32px', cursor: 'pointer', fontSize: '16px'
+              }}>✕</button>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '20px', padding: '16px', background: '#F0F9FF', borderRadius: '16px' }}>
+              <div style={{
+                width: '52px', height: '52px', borderRadius: '14px',
+                background: `linear-gradient(135deg, ${typeColors[selectedRdv.type]}, ${typeColors[selectedRdv.type]}99)`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'white', fontWeight: '700', fontSize: '20px'
               }}>
-                <p style={{ fontWeight: '600', color: '#1565C0', margin: '0 0 4px 0', fontSize: '14px' }}>{day.day}</p>
-                <p style={{ fontSize: '20px', fontWeight: '700', color: '#1565C0', margin: '0 0 8px 0' }}>{day.date}</p>
-                <p style={{ fontSize: '12px', color: '#666', margin: 0 }}>{day.slots} slots</p>
+                {selectedRdv.patient.charAt(0)}
+              </div>
+              <div>
+                <p style={{ margin: 0, fontWeight: '700', color: '#1a1a2e', fontSize: '16px' }}>{selectedRdv.patient}</p>
+                <p style={{ margin: 0, color: '#6B7280', fontSize: '13px' }}>{selectedRdv.service}</p>
+              </div>
+            </div>
+
+            {[
+              { label: 'Type', value: selectedRdv.type },
+              { label: 'Heure', value: selectedRdv.heure },
+              { label: 'Durée', value: selectedRdv.duree },
+              { label: 'Service', value: selectedRdv.service },
+              { label: 'Statut', value: selectedRdv.statut },
+            ].map((item) => (
+              <div key={item.label} style={{
+                display: 'flex', justifyContent: 'space-between',
+                padding: '10px 0', borderBottom: '1px solid #F3F4F6'
+              }}>
+                <span style={{ color: '#6B7280', fontSize: '13px' }}>{item.label}</span>
+                <span style={{ color: '#1a1a2e', fontWeight: '600', fontSize: '13px' }}>{item.value}</span>
+              </div>
+            ))}
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+              {selectedRdv.statut === 'En attente' && (
+                <button onClick={() => { handleConfirmer(selectedRdv.id); setShowModal(false); }} style={{
+                  flex: 1, background: 'linear-gradient(135deg, #16a34a, #15803d)',
+                  color: 'white', border: 'none', borderRadius: '12px',
+                  padding: '12px', fontSize: '13px', cursor: 'pointer', fontWeight: '600'
+                }}>
+                  ✅ Confirmer
+                </button>
+              )}
+              {selectedRdv.statut !== 'Annulé' && (
+                <button onClick={() => { handleAnnuler(selectedRdv.id); setShowModal(false); }} style={{
+                  flex: 1, background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+                  color: 'white', border: 'none', borderRadius: '12px',
+                  padding: '12px', fontSize: '13px', cursor: 'pointer', fontWeight: '600'
+                }}>
+                  ❌ Annuler le RDV
+                </button>
+              )}
+              <button onClick={() => setShowModal(false)} style={{
+                flex: 1, background: '#F3F4F6', color: '#374151',
+                border: 'none', borderRadius: '12px',
+                padding: '12px', fontSize: '13px', cursor: 'pointer', fontWeight: '600'
+              }}>
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Confirmation Annulation */}
+      {showConfirmAnnuler !== null && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999
+        }}>
+          <div style={{
+            background: 'white', borderRadius: '20px', padding: '28px',
+            width: '360px', textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '12px' }}>⚠️</div>
+            <h3 style={{ margin: '0 0 8px', color: '#1a1a2e' }}>Confirmer l'annulation</h3>
+            <p style={{ color: '#6B7280', fontSize: '13px', marginBottom: '20px' }}>
+              Êtes-vous sûr de vouloir annuler ce rendez-vous ?
+            </p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => confirmerAnnulation(showConfirmAnnuler)} style={{
+                flex: 1, background: '#dc2626', color: 'white',
+                border: 'none', borderRadius: '10px', padding: '10px',
+                fontSize: '13px', cursor: 'pointer', fontWeight: '600'
+              }}>
+                Oui, annuler
+              </button>
+              <button onClick={() => setShowConfirmAnnuler(null)} style={{
+                flex: 1, background: '#F3F4F6', color: '#374151',
+                border: 'none', borderRadius: '10px', padding: '10px',
+                fontSize: '13px', cursor: 'pointer', fontWeight: '600'
+              }}>
+                Non, garder
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginLeft: '90px', flex: 1, padding: '24px' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+          <div>
+            <h1 style={{ margin: 0, fontSize: '22px', fontWeight: '700', color: '#1a1a2e' }}>Agenda</h1>
+            <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#6B7280' }}>
+              {filtered.length} rendez-vous aujourd'hui
+            </p>
+          </div>
+          <button style={{
+            background: 'linear-gradient(135deg, #1565C0, #1976D2)',
+            color: 'white', border: 'none', borderRadius: '12px',
+            padding: '10px 20px', fontSize: '13px', cursor: 'pointer', fontWeight: '600'
+          }}>
+            + Nouveau RDV
+          </button>
+        </div>
+
+        {/* Calendrier */}
+        <div style={{ background: 'white', borderRadius: '20px', padding: '20px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', marginBottom: '20px' }}>
+          <p style={{ margin: '0 0 16px', fontWeight: '700', color: '#1a1a2e', fontSize: '15px' }}>
+            Semaine du 6 au 12 Mai 2026
+          </p>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {weekDays.map((d) => (
+              <div key={d.date} onClick={() => setSelectedDay(d.date)} style={{
+                flex: 1, textAlign: 'center', padding: '12px 8px',
+                borderRadius: '14px', cursor: 'pointer',
+                background: selectedDay === d.date ? 'linear-gradient(135deg, #1565C0, #1976D2)' : '#F9FAFB',
+              }}>
+                <p style={{ margin: '0 0 4px', fontSize: '10px', color: selectedDay === d.date ? 'rgba(255,255,255,0.7)' : '#9CA3AF' }}>{d.day}</p>
+                <p style={{ margin: '0 0 6px', fontSize: '16px', fontWeight: '700', color: selectedDay === d.date ? 'white' : '#1a1a2e' }}>{d.date}</p>
+                <div style={{
+                  width: '20px', height: '20px', borderRadius: '50%',
+                  background: selectedDay === d.date ? 'rgba(255,255,255,0.3)' : '#EEF2FF',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  margin: '0 auto', fontSize: '10px',
+                  color: selectedDay === d.date ? 'white' : '#1565C0', fontWeight: '700'
+                }}>
+                  {d.rdv}
+                </div>
               </div>
             ))}
           </div>
+        </div>
 
-          <div style={{ marginTop: '32px' }}>
-            <h2 style={{ color: '#1565C0', marginBottom: '16px' }}>Rendez-vous du Mardi 8 Juin</h2>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
-              gap: '12px'
+        {/* Filtres */}
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+          {filters.map((f) => (
+            <button key={f} onClick={() => setFilter(f)} style={{
+              padding: '8px 16px', borderRadius: '20px', border: 'none', cursor: 'pointer',
+              background: filter === f ? '#1565C0' : 'white',
+              color: filter === f ? 'white' : '#6B7280',
+              fontSize: '12px', fontWeight: '600',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
             }}>
-              {[
-                { time: '09:00', patient: 'Ahmed Hassan', type: 'Consultation' },
-                { time: '09:30', patient: 'Fatima Mohamed', type: 'Suivi' },
-                { time: '10:15', patient: 'Youssef Benali', type: 'Diagnostic' },
-                { time: '11:00', patient: 'Sara Alaoui', type: 'Prescription' },
-                { time: '14:00', patient: 'Mohammed Khalil', type: 'Consultation' },
-                { time: '15:30', patient: 'Noor Habib', type: 'Suivi' },
-              ].map((appt, idx) => (
-                <div key={idx} style={{
-                  border: '1px solid #E0E7FF',
-                  borderRadius: '8px',
-                  padding: '12px',
-                  background: '#F8FAFC'
+              {f}
+            </button>
+          ))}
+        </div>
+
+        {/* Liste RDV */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {filtered.map((rdv) => (
+            <div key={rdv.id} style={{
+              background: 'white', borderRadius: '16px', padding: '16px 20px',
+              boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+              display: 'flex', alignItems: 'center', gap: '16px',
+              borderLeft: `4px solid ${typeColors[rdv.type] || '#1565C0'}`
+            }}>
+              <div style={{ textAlign: 'center', minWidth: '60px' }}>
+                <p style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#1565C0' }}>{rdv.heure}</p>
+                <p style={{ margin: 0, fontSize: '10px', color: '#9CA3AF' }}>{rdv.duree}</p>
+              </div>
+              <div style={{ width: '1px', height: '40px', background: '#E5E7EB' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
+                <div style={{
+                  width: '40px', height: '40px', borderRadius: '12px',
+                  background: `linear-gradient(135deg, ${typeColors[rdv.type]}, ${typeColors[rdv.type]}99)`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: 'white', fontWeight: '700', fontSize: '16px'
                 }}>
-                  <p style={{ fontWeight: '600', color: '#1565C0', margin: '0 0 4px 0', fontSize: '14px' }}>⏰ {appt.time}</p>
-                  <p style={{ fontWeight: '500', color: '#333', margin: '0 0 2px 0', fontSize: '14px' }}>{appt.patient}</p>
-                  <p style={{ fontSize: '12px', color: '#999', margin: 0 }}>{appt.type}</p>
+                  {rdv.patient.charAt(0)}
                 </div>
-              ))}
+                <div>
+                  <p style={{ margin: 0, fontWeight: '700', color: '#1a1a2e', fontSize: '14px' }}>{rdv.patient}</p>
+                  <p style={{ margin: 0, color: '#6B7280', fontSize: '12px' }}>{rdv.service}</p>
+                </div>
+              </div>
+              <span style={{
+                background: `${typeColors[rdv.type]}15`, color: typeColors[rdv.type],
+                padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: '600'
+              }}>{rdv.type}</span>
+              <span style={{
+                background: statutColors[rdv.statut].bg, color: statutColors[rdv.statut].color,
+                padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: '600'
+              }}>{rdv.statut}</span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={() => handleVoir(rdv)} style={{
+                  background: '#EEF2FF', color: '#1565C0', border: 'none',
+                  borderRadius: '8px', padding: '6px 12px', fontSize: '11px',
+                  cursor: 'pointer', fontWeight: '600'
+                }}>Voir</button>
+                {rdv.statut === 'En attente' && (
+                  <button onClick={() => handleConfirmer(rdv.id)} style={{
+                    background: '#DCFCE7', color: '#16a34a', border: 'none',
+                    borderRadius: '8px', padding: '6px 12px', fontSize: '11px',
+                    cursor: 'pointer', fontWeight: '600'
+                  }}>Confirmer</button>
+                )}
+                {rdv.statut !== 'Annulé' && (
+                  <button onClick={() => handleAnnuler(rdv.id)} style={{
+                    background: '#FEE2E2', color: '#dc2626', border: 'none',
+                    borderRadius: '8px', padding: '6px 12px', fontSize: '11px',
+                    cursor: 'pointer', fontWeight: '600'
+                  }}>Annuler</button>
+                )}
+              </div>
             </div>
-          </div>
+          ))}
         </div>
       </div>
     </div>

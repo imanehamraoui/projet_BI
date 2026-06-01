@@ -1,194 +1,193 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useKeycloak } from '@react-keycloak/web';
+import Sidebar from '@/components/Sidebar';
+import {
+  LineChart, Line, BarChart, Bar, XAxis, YAxis,
+  CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, AreaChart, Area, Legend
+} from 'recharts';
 
-export default function StatsPage() {
-  const router = useRouter();
-  const { keycloak } = useKeycloak();
+const consultationsData = [
+  { mois: 'Jan', consultations: 320, nouveaux: 80, suivis: 240 },
+  { mois: 'Fév', consultations: 280, nouveaux: 60, suivis: 220 },
+  { mois: 'Mar', consultations: 410, nouveaux: 110, suivis: 300 },
+  { mois: 'Avr', consultations: 390, nouveaux: 95, suivis: 295 },
+  { mois: 'Mai', consultations: 450, nouveaux: 120, suivis: 330 },
+  { mois: 'Jun', consultations: 380, nouveaux: 85, suivis: 295 },
+  { mois: 'Jul', consultations: 290, nouveaux: 70, suivis: 220 },
+  { mois: 'Aoû', consultations: 310, nouveaux: 75, suivis: 235 },
+];
 
+const servicesData = [
+  { name: 'Cardiologie', value: 45, color: '#1565C0' },
+  { name: 'Neurologie', value: 28, color: '#7C3AED' },
+  { name: 'Pédiatrie', value: 15, color: '#0EA5E9' },
+  { name: 'Autres', value: 12, color: '#94A3B8' },
+];
+
+const ageData = [
+  { tranche: '0-18', patients: 85 },
+  { tranche: '19-35', patients: 210 },
+  { tranche: '36-50', patients: 380 },
+  { tranche: '51-65', patients: 290 },
+  { tranche: '65+', patients: 180 },
+];
+
+const satisfactionData = [
+  { mois: 'Jan', score: 4.2 },
+  { mois: 'Fév', score: 4.4 },
+  { mois: 'Mar', score: 4.1 },
+  { mois: 'Avr', score: 4.6 },
+  { mois: 'Mai', score: 4.5 },
+  { mois: 'Jun', score: 4.8 },
+  { mois: 'Jul', score: 4.7 },
+  { mois: 'Aoû', score: 4.5 },
+];
+
+export default function MedecinStats() {
   return (
-    <div style={{
-      background: '#E8F0FE',
-      minHeight: '100vh',
-      display: 'flex',
-      fontFamily: "'Segoe UI', sans-serif"
-    }}>
-      {/* ── SIDEBAR ── */}
-      <div style={{
-        width: '90px',
-        background: 'white',
-        borderRadius: '0 24px 24px 0',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        padding: '28px 0',
-        gap: '28px',
-        boxShadow: '4px 0 20px rgba(21,101,192,0.08)',
-        position: 'fixed',
-        top: 0, bottom: 0, left: 0,
-        zIndex: 100
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{
-            width: '48px', height: '48px',
-            background: 'linear-gradient(135deg, #1565C0, #1976D2)',
-            borderRadius: '14px',
-            display: 'flex', alignItems: 'center',
-            justifyContent: 'center', margin: '0 auto 6px'
-          }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z" fill="white"/>
-            </svg>
-          </div>
-          <p style={{ fontSize: '10px', color: '#1565C0', fontWeight: '700', margin: 0 }}>Médecin</p>
-        </div>
+    <div style={{ background: '#E8F0FE', minHeight: '100vh', display: 'flex', fontFamily: "'Segoe UI', sans-serif" }}>
+      <Sidebar role="medecin" activeItem="Stats" />
 
-        {[
-          { label: 'Dashboard', svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" fill="#1565C0"/><rect x="14" y="3" width="7" height="7" rx="1" fill="#1565C0" opacity="0.4"/><rect x="3" y="14" width="7" height="7" rx="1" fill="#1565C0" opacity="0.4"/><rect x="14" y="14" width="7" height="7" rx="1" fill="#1565C0" opacity="0.4"/></svg>, onClick: () => router.push('/dashboard/medecin') },
-          { label: 'Patients', svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" fill="#9CA3AF"/></svg>, onClick: () => router.push('/dashboard/medecin/patients') },
-          { label: 'Messages', svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" fill="#9CA3AF"/></svg>, onClick: () => router.push('/dashboard/medecin/messages') },
-          { label: 'Agenda', svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z" fill="#9CA3AF"/></svg>, onClick: () => router.push('/dashboard/medecin/agenda') },
-          { label: 'Stats', active: true, svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z" fill="#1565C0"/></svg>, onClick: () => router.push('/dashboard/medecin/stats') },
-        ].map((item) => (
-          <div key={item.label} style={{
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px',
-            cursor: 'pointer'
-          }} onClick={item.onClick}>
-            <div style={{
-              width: '44px', height: '44px', borderRadius: '12px',
-              background: item.active ? '#E3F2FD' : 'transparent',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              borderLeft: item.active ? '3px solid #1565C0' : '3px solid transparent',
-              transition: 'all 0.2s ease'
-            }}>
-              {item.svg}
-            </div>
-            <span style={{ fontSize: '9px', color: item.active ? '#1565C0' : '#9CA3AF', fontWeight: item.active ? '700' : '400' }}>
-              {item.label}
-            </span>
-          </div>
-        ))}
-
-        <div style={{ marginTop: 'auto' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
-            onClick={() => keycloak?.logout()}>
-            <div style={{
-              width: '44px', height: '44px', borderRadius: '12px',
-              background: '#FEF2F2',
-              display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" fill="#EF4444"/>
-              </svg>
-            </div>
-            <span style={{ fontSize: '9px', color: '#EF4444', fontWeight: '600' }}>Logout</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ── MAIN CONTENT ── */}
       <div style={{ marginLeft: '90px', flex: 1, padding: '24px' }}>
-        <div style={{
-          background: 'white',
-          borderRadius: '16px',
-          padding: '24px',
-          boxShadow: '0 2px 8px rgba(21,101,192,0.08)'
-        }}>
-          <h1 style={{ color: '#1565C0', marginBottom: '16px' }}>📊 Statistiques Annuelles 2024</h1>
-          
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: '16px',
-            marginBottom: '32px'
-          }}>
-            {[
-              { label: 'Total Consultations', value: '542', trend: '+12%' },
-              { label: 'Patients Traités', value: '238', trend: '+8%' },
-              { label: 'Taux Guérison', value: '94.2%', trend: '+3.1%' },
-              { label: 'Satisfaction Patient', value: '4.8/5', trend: '+0.3' },
-            ].map((stat, idx) => (
-              <div key={idx} style={{
-                border: '1px solid #E0E7FF',
-                borderRadius: '8px',
-                padding: '16px',
-                background: 'linear-gradient(135deg, #E3F2FD, #F0F7FF)'
-              }}>
-                <p style={{ color: '#666', fontSize: '12px', margin: '0 0 8px 0' }}>{stat.label}</p>
-                <p style={{ fontSize: '28px', fontWeight: '700', color: '#1565C0', margin: '0 0 8px 0' }}>{stat.value}</p>
-                <p style={{ fontSize: '12px', color: '#22C55E', margin: 0 }}>{stat.trend} par rapport l\'année précédente</p>
+        {/* Header */}
+        <div style={{ marginBottom: '24px' }}>
+          <h1 style={{ margin: 0, fontSize: '22px', fontWeight: '700', color: '#1a1a2e' }}>
+            Statistiques
+          </h1>
+          <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#6B7280' }}>
+            Analyse complète de votre activité — 2024
+          </p>
+        </div>
+
+        {/* KPI Cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '20px' }}>
+          {[
+            { label: 'Total Consultations', value: '2,830', change: '+12%', icon: '📋', color: '#1565C0', bg: '#EEF2FF' },
+            { label: 'Nouveaux Patients', value: '695', change: '+8%', icon: '👥', color: '#16a34a', bg: '#F0FDF4' },
+            { label: 'Taux Satisfaction', value: '4.5/5', change: '+0.3', icon: '⭐', color: '#CA8A04', bg: '#FEFCE8' },
+            { label: 'Durée Moy. RDV', value: '28 min', change: '-2 min', icon: '⏱️', color: '#7C3AED', bg: '#F5F3FF' },
+          ].map((kpi) => (
+            <div key={kpi.label} style={{
+              background: 'white', borderRadius: '16px', padding: '18px',
+              boxShadow: '0 2px 12px rgba(0,0,0,0.06)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <div style={{
+                  width: '36px', height: '36px', borderRadius: '10px',
+                  background: kpi.bg, display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', fontSize: '18px'
+                }}>{kpi.icon}</div>
+                <span style={{
+                  background: '#DCFCE7', color: '#16a34a',
+                  borderRadius: '20px', padding: '2px 8px',
+                  fontSize: '10px', fontWeight: '600'
+                }}>↑ {kpi.change}</span>
               </div>
-            ))}
+              <p style={{ margin: 0, color: '#6B7280', fontSize: '11px' }}>{kpi.label}</p>
+              <p style={{ margin: 0, color: '#1a1a2e', fontSize: '22px', fontWeight: '800' }}>{kpi.value}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Charts Row 1 */}
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px', marginBottom: '16px' }}>
+          {/* Area Chart */}
+          <div style={{ background: 'white', borderRadius: '16px', padding: '20px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <p style={{ margin: 0, color: '#1a1a2e', fontSize: '15px', fontWeight: '700' }}>
+                Évolution des consultations
+              </p>
+              <span style={{ background: '#EEF2FF', color: '#1565C0', fontSize: '11px', padding: '4px 10px', borderRadius: '20px', fontWeight: '600' }}>2024</span>
+            </div>
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={consultationsData}>
+                <defs>
+                  <linearGradient id="gc" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#1565C0" stopOpacity={0.15}/>
+                    <stop offset="95%" stopColor="#1565C0" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="gn" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#16a34a" stopOpacity={0.15}/>
+                    <stop offset="95%" stopColor="#16a34a" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
+                <XAxis dataKey="mois" tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
+                <Legend />
+                <Area type="monotone" dataKey="consultations" stroke="#1565C0" strokeWidth={2.5} fill="url(#gc)" name="Total" />
+                <Area type="monotone" dataKey="nouveaux" stroke="#16a34a" strokeWidth={2} fill="url(#gn)" name="Nouveaux" />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
 
-          <div style={{
-            marginTop: '32px',
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-            gap: '16px'
-          }}>
-            <div style={{
-              border: '1px solid #E0E7FF',
-              borderRadius: '8px',
-              padding: '16px'
-            }}>
-              <h3 style={{ color: '#1565C0', marginBottom: '16px' }}>Répartition par Type</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {[
-                  { type: 'Consultation', value: 45 },
-                  { type: 'Diagnostic', value: 30 },
-                  { type: 'Suivi', value: 15 },
-                  { type: 'Prescription', value: 10 },
-                ].map((item, idx) => (
-                  <div key={idx}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                      <span style={{ fontSize: '14px', color: '#333' }}>{item.type}</span>
-                      <span style={{ fontWeight: '600', color: '#1565C0' }}>{item.value}%</span>
-                    </div>
-                    <div style={{
-                      height: '8px',
-                      background: '#E0E7FF',
-                      borderRadius: '4px',
-                      overflow: 'hidden'
-                    }}>
-                      <div style={{
-                        height: '100%',
-                        width: `${item.value}%`,
-                        background: 'linear-gradient(90deg, #1565C0, #1976D2)'
-                      }}></div>
-                    </div>
+          {/* Pie Chart */}
+          <div style={{ background: 'white', borderRadius: '16px', padding: '20px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+            <p style={{ margin: '0 0 16px', color: '#1a1a2e', fontSize: '15px', fontWeight: '700' }}>
+              Répartition par service
+            </p>
+            <ResponsiveContainer width="100%" height={160}>
+              <PieChart>
+                <Pie data={servicesData} cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={5} dataKey="value">
+                  {servicesData.map((entry, index) => (
+                    <Cell key={index} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {servicesData.map((s) => (
+                <div key={s.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: s.color }} />
+                    <span style={{ fontSize: '11px', color: '#6B7280' }}>{s.name}</span>
                   </div>
-                ))}
-              </div>
+                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#1a1a2e' }}>{s.value}%</span>
+                </div>
+              ))}
             </div>
+          </div>
+        </div>
 
-            <div style={{
-              border: '1px solid #E0E7FF',
-              borderRadius: '8px',
-              padding: '16px'
-            }}>
-              <h3 style={{ color: '#1565C0', marginBottom: '16px' }}>Résultats Mensuels</h3>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(3, 1fr)',
-                gap: '8px'
-              }}>
-                {['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'].map((month, idx) => (
-                  <div key={idx} style={{
-                    textAlign: 'center',
-                    padding: '8px',
-                    background: idx < 8 ? '#E3F2FD' : '#F0F7FF',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    fontWeight: '500',
-                    color: '#1565C0'
-                  }}>
-                    {month}
-                  </div>
-                ))}
-              </div>
-            </div>
+        {/* Charts Row 2 */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          {/* Bar Chart Age */}
+          <div style={{ background: 'white', borderRadius: '16px', padding: '20px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+            <p style={{ margin: '0 0 16px', color: '#1a1a2e', fontSize: '15px', fontWeight: '700' }}>
+              Distribution par âge
+            </p>
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={ageData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
+                <XAxis dataKey="tranche" tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
+                <Bar dataKey="patients" fill="#1565C0" radius={[4,4,0,0]} name="Patients" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Line Chart Satisfaction */}
+          <div style={{ background: 'white', borderRadius: '16px', padding: '20px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+            <p style={{ margin: '0 0 4px', color: '#1a1a2e', fontSize: '15px', fontWeight: '700' }}>
+              Score de satisfaction
+            </p>
+            <p style={{ margin: '0 0 16px', color: '#6B7280', fontSize: '12px' }}>
+              Note moyenne des patients /5
+            </p>
+            <ResponsiveContainer width="100%" height={180}>
+              <LineChart data={satisfactionData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
+                <XAxis dataKey="mois" tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
+                <YAxis domain={[3.5, 5]} tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
+                <Line type="monotone" dataKey="score" stroke="#CA8A04" strokeWidth={2.5}
+                  dot={{ fill: '#CA8A04', r: 4 }} name="Score" />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         </div>
       </div>
