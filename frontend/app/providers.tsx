@@ -19,12 +19,8 @@ export default function Providers({
     <ReactKeycloakProvider 
       authClient={keycloak} 
       initOptions={initOptions}
-      onTokens={(tokens) => {
-        // Optional: Log token for debugging
+      onTokens={() => {
         console.log('Keycloak tokens received');
-      }}
-      onError={(error) => {
-        console.error('Keycloak error:', error);
       }}
     >
       {children}

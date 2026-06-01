@@ -38,7 +38,17 @@ export default function ChercheurDonnees() {
   const fetchData = useCallback(async () => {
     try {
       const res = await api.get('/api/patients');
-      if (res.data?.length > 0) setPatients(res.data);
+      if (res.data?.data?.length > 0) {
+        const formattedData = res.data.data.map((p: any) => ({
+          ...p,
+          token_anonyme: `TK-${Math.random().toString(36).substr(2,8).toUpperCase()}`,
+          age: p.age || 40,
+          sexe: p.sexe || 'M',
+          region: p.region || 'Rabat',
+          diagnostic_code: p.diagnostic_code || 'J10.0'
+        }));
+        setPatients(formattedData);
+      }
     } catch {}
   }, []);
 

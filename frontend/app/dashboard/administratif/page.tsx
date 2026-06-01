@@ -1,8 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useCallback } from 'react';
 import keycloak from '@/lib/keycloak';
 import api from '@/lib/api';
+import Sidebar from '@/components/Sidebar';
+import RefreshButton from '@/components/RefreshButton';
+import { useAutoRefresh } from '@/components/useAutoRefresh';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, LineChart, Line
@@ -46,16 +49,21 @@ export default function DashboardAdministratif() {
   const [kpis, setKpis] = useState<KPI | null>(null);
   const [userName, setUserName] = useState('Admin');
 
-  useEffect(() => {
-    keycloak.init({ onLoad: 'check-sso' }).then((authenticated) => {
-      if (authenticated) {
-        setUserName(keycloak.tokenParsed?.preferred_username || 'Admin');
-        api.get('/api/dashboard/kpis?annee=2024')
-          .then((res) => setKpis(res.data))
-          .catch(() => {});
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await api.get('/api/dashboard/kpis?annee=2024');
+      if (res.data?.kpis) {
+        const d = res.data.kpis;
+        setKpis({
+          total_consultations: d.activite?.total || 0,
+          total_patients: d.activite?.patients_uniques || 0,
+          revenus_total: d.financier?.chiffre_affaires || 0
+        });
       }
-    }).catch(() => {});
+    } catch {}
   }, []);
+
+  useAutoRefresh(fetchData, 30);
 
   return (
     <div style={{
@@ -64,63 +72,7 @@ export default function DashboardAdministratif() {
       display: 'flex',
       fontFamily: "'Segoe UI', sans-serif"
     }}>
-      {/* SIDEBAR */}
-      <div style={{
-        width: '90px', background: 'white',
-        borderRadius: '0 24px 24px 0',
-        display: 'flex', flexDirection: 'column',
-        alignItems: 'center', padding: '28px 0', gap: '28px',
-        boxShadow: '4px 0 20px rgba(21,101,192,0.08)',
-        position: 'fixed', top: 0, bottom: 0, left: 0, zIndex: 100
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{
-            width: '48px', height: '48px',
-            background: 'linear-gradient(135deg, #166534, #16a34a)',
-            borderRadius: '14px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 6px'
-          }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
-              <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14H7v-2h5v2zm5-4H7v-2h10v2zm0-4H7V7h10v2z"/>
-            </svg>
-          </div>
-          <p style={{ fontSize: '10px', color: '#166534', fontWeight: '700', margin: 0 }}>Admin</p>
-        </div>
-
-        {[
-          { label: 'Dashboard', active: true, svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" fill="#166534"/><rect x="14" y="3" width="7" height="7" rx="1" fill="#166534" opacity="0.4"/><rect x="3" y="14" width="7" height="7" rx="1" fill="#166534" opacity="0.4"/><rect x="14" y="14" width="7" height="7" rx="1" fill="#166534" opacity="0.4"/></svg> },
-          { label: 'Finances', svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="#9CA3AF"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg> },
-          { label: 'Patients', svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="#9CA3AF"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg> },
-          { label: 'Rapports', svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="#9CA3AF"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14H7v-2h5v2zm5-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg> },
-        ].map((item) => (
-          <div key={item.label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
-            <div style={{
-              width: '44px', height: '44px', borderRadius: '12px',
-              background: item.active ? '#DCFCE7' : 'transparent',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              borderLeft: item.active ? '3px solid #166534' : '3px solid transparent'
-            }}>
-              {item.svg}
-            </div>
-            <span style={{ fontSize: '9px', color: item.active ? '#166534' : '#9CA3AF', fontWeight: item.active ? '700' : '400' }}>
-              {item.label}
-            </span>
-          </div>
-        ))}
-
-        <div style={{ marginTop: 'auto' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
-            onClick={() => keycloak.logout()}>
-            <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: '#FEF2F2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" fill="#EF4444"/>
-              </svg>
-            </div>
-            <span style={{ fontSize: '9px', color: '#EF4444', fontWeight: '600' }}>Logout</span>
-          </div>
-        </div>
-      </div>
+      <Sidebar role="administratif" activeItem="Dashboard" />
 
       {/* MAIN */}
       <div style={{ marginLeft: '90px', flex: 1, padding: '24px', display: 'flex', gap: '20px' }}>
@@ -135,8 +87,11 @@ export default function DashboardAdministratif() {
                 {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
               </p>
             </div>
-            <div style={{ background: 'white', borderRadius: '12px', padding: '10px 20px', border: '1px solid #E5E7EB', fontSize: '14px', color: '#6b7280' }}>
-              📅 Hôpital Ibn Sina
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <RefreshButton onRefresh={fetchData} color="#166534" />
+              <div style={{ background: 'white', borderRadius: '12px', padding: '10px 20px', border: '1px solid #E5E7EB', fontSize: '14px', color: '#6b7280' }}>
+                📅 Hôpital Ibn Sina
+              </div>
             </div>
           </div>
 
